@@ -1,0 +1,16 @@
+package com.example.emotiontherapy.navigation
+
+const val MAIN_ROUTE = "main"
+const val ADD_CHILD_ROUTE = "add_child"
+const val ADD_EMOTIONS_ROUTE = "add_emotions"
+const val EMOTION_DETAIL_ROUTE = "emotion_detail"
+const val EVOLUTION_ROUTE = "evolution"
+const val TOKENS_ROUTE = "tokens"
+const val EXERCISES_ROUTE = "exercises"
+const val SHOW_EMOTION_ROUTE = "show_emotion"
+const val FIND_EMOTION_ROUTE = "find_emotion"
+const val MORE_ROUTE = "more"
+const val EXERCISE_SESSION_ROUTE = "exercise_session"
+const val EXERCISE_COMPLETE_ROUTE = "exercise_complete"
+const val EXERCISE_STATS_ROUTE = "exercise_stats"
+const val AI_ROUTE = "ai_face"
