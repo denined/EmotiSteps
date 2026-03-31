@@ -97,6 +97,15 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun renameChild(childId: Int, newName: String) {
+        val cleanName = newName.trim()
+        if (cleanName.isBlank()) return
+
+        viewModelScope.launch {
+            repository.renameChild(childId, cleanName)
+        }
+    }
+
     fun deleteChild(childId: Int) {
         viewModelScope.launch {
             repository.deleteChild(childId)
@@ -124,6 +133,21 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
 
         viewModelScope.launch {
             repository.addImagesToEmotion(emotionId, sanitizedUris)
+        }
+    }
+
+    fun renameEmotion(emotionId: Int, newName: String) {
+        val cleanName = newName.trim()
+        if (cleanName.isBlank()) return
+
+        viewModelScope.launch {
+            repository.renameEmotion(emotionId, cleanName)
+        }
+    }
+
+    fun deleteEmotion(emotionId: Int) {
+        viewModelScope.launch {
+            repository.deleteEmotion(emotionId)
         }
     }
 

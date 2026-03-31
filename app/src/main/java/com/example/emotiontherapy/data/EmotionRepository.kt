@@ -81,6 +81,10 @@ class EmotionRepository(
         dao.insertChild(ChildEntity(name = name))
     }
 
+    suspend fun renameChild(childId: Int, newName: String) {
+        dao.updateChildName(childId, newName)
+    }
+
     suspend fun deleteChild(childId: Int) {
         dao.deleteChildById(childId)
     }
@@ -112,6 +116,14 @@ class EmotionRepository(
                 )
             }
         )
+    }
+
+    suspend fun renameEmotion(emotionId: Int, newName: String) {
+        dao.updateEmotionName(emotionId, newName)
+    }
+
+    suspend fun deleteEmotion(emotionId: Int) {
+        dao.deleteEmotionById(emotionId)
     }
 
     suspend fun deleteEmotionImages(imageIds: List<Int>) {

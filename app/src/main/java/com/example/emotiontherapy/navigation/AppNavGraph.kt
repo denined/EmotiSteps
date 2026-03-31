@@ -80,7 +80,14 @@ fun AppNavGraph(
                     children = uiState.children,
                     selectedChild = uiState.selectedChild,
                     onChildClick = { child ->
-                        viewModel.selectChild(child.id)
+                        if (uiState.selectedChild?.id == child.id) {
+                            viewModel.clearSelectedChild()
+                        } else {
+                            viewModel.selectChild(child.id)
+                        }
+                    },
+                    onRenameChild = { childId, newName ->
+                        viewModel.renameChild(childId, newName)
                     },
                     onDeleteChildClick = { child ->
                         childPendingDelete = child
@@ -138,6 +145,12 @@ fun AppNavGraph(
                         selectedEmotionId = emotion.id
                         navController.navigate(EMOTION_DETAIL_ROUTE)
                     },
+                    onDeleteEmotion = { emotionId ->
+                        viewModel.deleteEmotion(emotionId)
+                        if (selectedEmotionId == emotionId) {
+                            selectedEmotionId = null
+                        }
+                    },
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -147,6 +160,9 @@ fun AppNavGraph(
                     emotion = uiState.emotions.find { it.id == selectedEmotionId },
                     onAddImages = { emotionId, imageUris ->
                         viewModel.addImagesToEmotion(emotionId, imageUris)
+                    },
+                    onRenameEmotion = { emotionId, newName ->
+                        viewModel.renameEmotion(emotionId, newName)
                     },
                     onDeleteImages = { imageIds ->
                         viewModel.deleteEmotionImages(imageIds)

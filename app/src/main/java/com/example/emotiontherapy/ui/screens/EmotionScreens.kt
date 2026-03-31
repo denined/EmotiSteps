@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -55,6 +56,7 @@ fun AddEmotionsScreen(
     emotions: List<EmotionItem>,
     onSaveEmotion: (String, List<String>) -> Unit,
     onEmotionClick: (EmotionItem) -> Unit,
+    onDeleteEmotion: (Int) -> Unit,
     onBack: () -> Unit
 ) {
     if (child == null) {
@@ -70,6 +72,7 @@ fun AddEmotionsScreen(
     var emotionName by rememberSaveable { mutableStateOf("") }
     var selectedImageUris by remember { mutableStateOf(emptyList<String>()) }
     var formError by rememberSaveable { mutableStateOf("") }
+    var emotionPendingDelete by remember { mutableStateOf<EmotionItem?>(null) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
@@ -89,6 +92,32 @@ fun AddEmotionsScreen(
             selectedImageUris = (selectedImageUris + persistedUris).distinct()
             formError = ""
         }
+    }
+
+    val pendingDeleteEmotion = emotionPendingDelete
+    if (pendingDeleteEmotion != null) {
+        AlertDialog(
+            onDismissRequest = { emotionPendingDelete = null },
+            title = { Text("Delete Emotion") },
+            text = {
+                Text("Delete ${pendingDeleteEmotion.name} and all of its pictures?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteEmotion(pendingDeleteEmotion.id)
+                        emotionPendingDelete = null
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { emotionPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Column(
@@ -157,19 +186,6 @@ fun AddEmotionsScreen(
             Text("Save Emotion")
         }
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Saved emotions: ${emotions.size}",
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Tap an emotion to manage its existing pictures.",
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-
         if (emotions.isNotEmpty()) {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -182,15 +198,28 @@ fun AddEmotionsScreen(
                             .clickable { onEmotionClick(emotion) }
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text(text = emotion.name, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = emotion.name,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 18.sp,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = { emotionPendingDelete = emotion }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = "Delete emotion"
+                                    )
+                                }
+                            }
                             Text(
                                 text = "Pictures: ${emotion.images.size}",
                                 modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-                            )
-                            Text(
-                                text = "Tap to view and manage pictures",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(bottom = 8.dp)
                             )
 
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -208,10 +237,6 @@ fun AddEmotionsScreen(
         } else {
             Spacer(modifier = Modifier.weight(1f))
         }
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
-        }
     }
 }
 
@@ -220,6 +245,7 @@ fun AddEmotionsScreen(
 fun EmotionDetailScreen(
     emotion: EmotionItem?,
     onAddImages: (Int, List<String>) -> Unit,
+    onRenameEmotion: (Int, String) -> Unit,
     onDeleteImages: (List<Int>) -> Unit,
     onBack: () -> Unit
 ) {
@@ -235,6 +261,8 @@ fun EmotionDetailScreen(
     val context = LocalContext.current
     var selectedImageIds by remember(emotion.id) { mutableStateOf(setOf<Int>()) }
     var showDeleteDialog by remember(emotion.id) { mutableStateOf(false) }
+    var showRenameDialog by remember(emotion.id) { mutableStateOf(false) }
+    var renameValue by remember(emotion.id) { mutableStateOf(emotion.name) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
@@ -281,6 +309,36 @@ fun EmotionDetailScreen(
         )
     }
 
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Emotion") },
+            text = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    label = { Text("Emotion Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRenameEmotion(emotion.id, renameValue)
+                        showRenameDialog = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showRenameDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -293,16 +351,23 @@ fun EmotionDetailScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = emotion.name, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    text = if (selectedImageIds.isEmpty()) {
-                        "Long press an image to start selecting pictures for deletion."
-                    } else {
-                        "${selectedImageIds.size} picture(s) selected"
-                    },
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                if (selectedImageIds.isNotEmpty()) {
+                    Text(
+                        text = "${selectedImageIds.size} picture(s) selected",
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
             Row {
+                IconButton(onClick = {
+                    renameValue = emotion.name
+                    showRenameDialog = true
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "Rename emotion"
+                    )
+                }
                 IconButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) {
                     Icon(
                         imageVector = Icons.Filled.Add,
@@ -378,10 +443,6 @@ fun EmotionDetailScreen(
                     }
                 }
             }
-        }
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
         }
     }
 }

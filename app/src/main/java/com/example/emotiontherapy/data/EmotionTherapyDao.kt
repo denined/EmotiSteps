@@ -28,11 +28,20 @@ interface EmotionTherapyDao {
     @Insert
     suspend fun insertChild(child: ChildEntity): Long
 
+    @Query("UPDATE children SET name = :newName WHERE id = :childId")
+    suspend fun updateChildName(childId: Int, newName: String)
+
     @Query("DELETE FROM children WHERE id = :childId")
     suspend fun deleteChildById(childId: Int)
 
     @Insert
     suspend fun insertEmotion(emotion: EmotionEntity): Long
+
+    @Query("UPDATE emotions SET name = :newName WHERE id = :emotionId")
+    suspend fun updateEmotionName(emotionId: Int, newName: String)
+
+    @Query("DELETE FROM emotions WHERE id = :emotionId")
+    suspend fun deleteEmotionById(emotionId: Int)
 
     @Insert
     suspend fun insertEmotionImages(images: List<EmotionImageEntity>)

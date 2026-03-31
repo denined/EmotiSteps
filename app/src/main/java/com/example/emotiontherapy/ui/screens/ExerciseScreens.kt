@@ -9,6 +9,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -137,6 +139,7 @@ fun ShowEmotionConfigScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -152,10 +155,6 @@ fun ShowEmotionConfigScreen(
                     text = "Add at least two emotions with pictures before starting this exercise.",
                     modifier = Modifier.padding(16.dp)
                 )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Back")
             }
             return
         }
@@ -268,12 +267,6 @@ fun ShowEmotionConfigScreen(
         ) {
             Text("Start Exercise")
         }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
-        }
     }
 }
 
@@ -300,6 +293,7 @@ fun FindEmotionConfigScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -315,10 +309,6 @@ fun FindEmotionConfigScreen(
                     text = "Add at least two emotions with pictures before starting this exercise.",
                     modifier = Modifier.padding(16.dp)
                 )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Back")
             }
             return
         }
@@ -387,12 +377,6 @@ fun FindEmotionConfigScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Start Exercise")
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
         }
     }
 }
@@ -929,18 +913,6 @@ fun ExerciseStatsScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Start
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back"
-                )
-            }
-        }
-
         Text(text = "Session Statistics", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text(text = "Correct guesses: ${session.correctRounds}/${session.answeredRounds.size}")
         Text(text = "Accuracy: ${session.accuracyPercent}%")

@@ -12,8 +12,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,12 +40,46 @@ fun MainScreen(
     children: List<Child>,
     selectedChild: Child?,
     onChildClick: (Child) -> Unit,
+    onRenameChild: (Int, String) -> Unit,
     onDeleteChildClick: (Child) -> Unit,
     onAddChildClick: () -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var childPendingRename by rememberSaveable { mutableStateOf<Child?>(null) }
+    var renameValue by rememberSaveable { mutableStateOf("") }
     val filteredChildren = children.filter { child ->
         child.name.contains(searchQuery.trim(), ignoreCase = true)
+    }
+
+    val pendingRenameChild = childPendingRename
+    if (pendingRenameChild != null) {
+        AlertDialog(
+            onDismissRequest = { childPendingRename = null },
+            title = { Text("Edit Child Name") },
+            text = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    label = { Text("Child Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRenameChild(pendingRenameChild.id, renameValue)
+                        childPendingRename = null
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { childPendingRename = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     Column(
@@ -71,17 +109,6 @@ fun MainScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (selectedChild != null) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "Current child: ${selectedChild.name}",
-                    modifier = Modifier.padding(16.dp),
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-        }
-
         if (children.isEmpty()) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(
@@ -102,23 +129,75 @@ fun MainScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(filteredChildren, key = { it.id }) { child ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    val isSelected = selectedChild?.id == child.id
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                        )
+                    ) {
                         Column(modifier = Modifier.padding(14.dp)) {
-                            Text(text = child.name, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
+                            Text(
+                                text = child.name,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 20.sp,
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                            if (isSelected) {
+                                Text(
+                                    text = "Selected child",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.height(10.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.Bottom
                             ) {
-                                Button(onClick = { onChildClick(child) }) {
-                                    Text(if (selectedChild?.id == child.id) "Selected" else "Select Child")
-                                }
-                                IconButton(onClick = { onDeleteChildClick(child) }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Delete,
-                                        contentDescription = "Delete child"
+                                Button(
+                                    onClick = { onChildClick(child) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSelected) {
+                                            MaterialTheme.colorScheme.tertiaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        },
+                                        contentColor = if (isSelected) {
+                                            MaterialTheme.colorScheme.onTertiaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onPrimary
+                                        }
                                     )
+                                ) {
+                                    Text(if (isSelected) "Selected" else "Select Child")
+                                }
+                                Row {
+                                    IconButton(onClick = {
+                                        childPendingRename = child
+                                        renameValue = child.name
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Edit,
+                                            contentDescription = "Edit child name"
+                                        )
+                                    }
+                                    IconButton(onClick = { onDeleteChildClick(child) }) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Delete,
+                                            contentDescription = "Delete child"
+                                        )
+                                    }
                                 }
                             }
                         }
