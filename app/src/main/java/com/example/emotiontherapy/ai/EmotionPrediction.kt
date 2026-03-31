@@ -4,5 +4,7 @@ data class EmotionPrediction(
     val label: String,
     val confidence: Float,
     val isPrototype: Boolean = true,
-    val isUncertain: Boolean = false
+    val isUncertain: Boolean = false,
+    val secondaryLabel: String? = null,
+    val secondaryConfidence: Float? = null
 )

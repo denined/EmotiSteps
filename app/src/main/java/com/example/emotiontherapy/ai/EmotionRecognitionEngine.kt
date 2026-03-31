@@ -13,8 +13,6 @@ import java.nio.ByteOrder
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.math.max
-import kotlin.math.min
 
 class EmotionRecognitionEngine private constructor(
     private val context: Context,
@@ -85,29 +83,16 @@ class EmotionRecognitionEngine private constructor(
         faceBitmap: Bitmap
     ): EmotionPrediction {
         val scaledBitmap = Bitmap.createScaledBitmap(faceBitmap, 48, 48, true)
-        val grayscaleValues = FloatArray(48 * 48)
-        var minLuminance = 1f
-        var maxLuminance = 0f
-
+        val inputBuffer = ByteBuffer.allocateDirect(4 * 48 * 48).order(ByteOrder.nativeOrder())
         for (y in 0 until 48) {
             for (x in 0 until 48) {
                 val pixel = scaledBitmap.getPixel(x, y)
                 val red = (pixel shr 16) and 0xFF
                 val green = (pixel shr 8) and 0xFF
                 val blue = pixel and 0xFF
-                val grayscale = (0.299f * red + 0.587f * green + 0.114f * blue) / 255f
-                val index = (y * 48) + x
-                grayscaleValues[index] = grayscale
-                if (grayscale < minLuminance) minLuminance = grayscale
-                if (grayscale > maxLuminance) maxLuminance = grayscale
+                val grayscale = (red + green + blue) / 3f / 255f
+                inputBuffer.putFloat(grayscale)
             }
-        }
-
-        val inputBuffer = ByteBuffer.allocateDirect(4 * 48 * 48).order(ByteOrder.nativeOrder())
-        val luminanceRange = (maxLuminance - minLuminance).coerceAtLeast(0.15f)
-        for (value in grayscaleValues) {
-            val normalized = ((value - minLuminance) / luminanceRange).coerceIn(0f, 1f)
-            inputBuffer.putFloat(normalized)
         }
         inputBuffer.rewind()
 
@@ -115,11 +100,15 @@ class EmotionRecognitionEngine private constructor(
         interpreter.run(inputBuffer, output)
 
         val probabilities = output[0]
-        val maxIndex = probabilities.indices.maxByOrNull { probabilities[it] } ?: 0
+        val sortedIndices = probabilities.indices.sortedByDescending { probabilities[it] }
+        val maxIndex = sortedIndices.firstOrNull() ?: 0
+        val secondaryIndex = sortedIndices.getOrNull(1)
         return EmotionPrediction(
             label = labels.getOrElse(maxIndex) { "Unknown" },
             confidence = probabilities[maxIndex],
-            isPrototype = false
+            isPrototype = false,
+            secondaryLabel = secondaryIndex?.let { labels.getOrElse(it) { "Unknown" } },
+            secondaryConfidence = secondaryIndex?.let { probabilities[it] }
         )
     }
 
@@ -127,10 +116,8 @@ class EmotionRecognitionEngine private constructor(
         private const val MODEL_FILE = "emotion_model.tflite"
         private const val LABELS_FILE = "emotion_labels.txt"
         private const val UNCERTAIN_LABEL = "Uncertain"
-        private const val MODEL_CONFIDENCE_THRESHOLD = 0.55f
+        private const val MODEL_CONFIDENCE_THRESHOLD = 0.60f
         private const val PROTOTYPE_CONFIDENCE_THRESHOLD = 0.60f
-        private const val FACE_CROP_SCALE = 1.35f
-        private const val MIN_FACE_CROP_SIZE = 48
 
         fun create(context: Context): EmotionRecognitionEngine {
             return EmotionRecognitionEngine(
@@ -140,46 +127,14 @@ class EmotionRecognitionEngine private constructor(
         }
 
         fun cropFace(bitmap: Bitmap, boundingBox: Rect): Bitmap? {
-            if (bitmap.width <= 1 || bitmap.height <= 1) return null
-
-            val faceWidth = boundingBox.width().coerceAtLeast(1)
-            val faceHeight = boundingBox.height().coerceAtLeast(1)
-            val faceCenterX = boundingBox.exactCenterX()
-            val faceCenterY = boundingBox.exactCenterY()
-            val targetSide = (max(faceWidth, faceHeight) * FACE_CROP_SCALE).toInt()
-                .coerceAtLeast(MIN_FACE_CROP_SIZE)
-            val halfSide = targetSide / 2f
-
-            var left = (faceCenterX - halfSide).toInt()
-            var top = (faceCenterY - halfSide).toInt()
-            var right = left + targetSide
-            var bottom = top + targetSide
-
-            if (left < 0) {
-                right = min(bitmap.width, right - left)
-                left = 0
-            }
-            if (top < 0) {
-                bottom = min(bitmap.height, bottom - top)
-                top = 0
-            }
-            if (right > bitmap.width) {
-                val shift = right - bitmap.width
-                left = (left - shift).coerceAtLeast(0)
-                right = bitmap.width
-            }
-            if (bottom > bitmap.height) {
-                val shift = bottom - bitmap.height
-                top = (top - shift).coerceAtLeast(0)
-                bottom = bitmap.height
-            }
-
-            val side = min(right - left, bottom - top)
-            if (side <= 0) return null
-
-            val squareLeft = left.coerceIn(0, bitmap.width - side)
-            val squareTop = top.coerceIn(0, bitmap.height - side)
-            return Bitmap.createBitmap(bitmap, squareLeft, squareTop, side, side)
+            val left = boundingBox.left.coerceIn(0, bitmap.width - 1)
+            val top = boundingBox.top.coerceIn(0, bitmap.height - 1)
+            val right = boundingBox.right.coerceIn(left + 1, bitmap.width)
+            val bottom = boundingBox.bottom.coerceIn(top + 1, bitmap.height)
+            val width = right - left
+            val height = bottom - top
+            if (width <= 0 || height <= 0) return null
+            return Bitmap.createBitmap(bitmap, left, top, width, height)
         }
 
         private fun loadModelFile(context: Context, fileName: String): MappedByteBuffer {

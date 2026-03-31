@@ -12,23 +12,32 @@ class PredictionSmoother(
         recentPredictions.addLast(prediction)
 
         val grouped = recentPredictions.groupBy { it.label }
-        val bestGroup = grouped.entries.maxWithOrNull(
-            compareBy<Map.Entry<String, List<EmotionPrediction>>>(
-                { it.value.size },
-                { it.value.sumOf { predictionItem -> predictionItem.confidence.toDouble() } }
+        val rankedGroups = grouped.entries
+            .sortedWith(
+                compareByDescending<Map.Entry<String, List<EmotionPrediction>>> { it.value.size }
+                    .thenByDescending { entry ->
+                        entry.value.sumOf { predictionItem -> predictionItem.confidence.toDouble() }
+                    }
             )
-        ) ?: return prediction
+        val bestGroup = rankedGroups.firstOrNull() ?: return prediction
+        val secondGroup = rankedGroups.getOrNull(1)
 
         val averageConfidence = bestGroup.value
             .map { it.confidence.toDouble() }
             .average()
             .toFloat()
+        val secondaryConfidence = secondGroup?.value
+            ?.map { it.confidence.toDouble() }
+            ?.average()
+            ?.toFloat()
 
         return EmotionPrediction(
             label = bestGroup.key,
             confidence = averageConfidence,
             isPrototype = bestGroup.value.any { it.isPrototype },
-            isUncertain = bestGroup.value.all { it.isUncertain }
+            isUncertain = bestGroup.value.all { it.isUncertain },
+            secondaryLabel = secondGroup?.key,
+            secondaryConfidence = secondaryConfidence
         )
     }
 
