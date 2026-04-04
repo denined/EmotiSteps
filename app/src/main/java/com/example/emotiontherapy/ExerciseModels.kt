@@ -11,6 +11,13 @@ enum class FindEmotionDifficulty {
     HARD
 }
 
+val FindEmotionDifficulty.requiredCorrectHits: Int
+    get() = when (this) {
+        FindEmotionDifficulty.EASY -> 5
+        FindEmotionDifficulty.MEDIUM -> 7
+        FindEmotionDifficulty.HARD -> 9
+    }
+
 enum class ExerciseLayout {
     SINGLE_EMOTION,
     MIXED_EMOTIONS
@@ -49,6 +56,7 @@ data class ExerciseSession(
     val currentRound: ExerciseRound,
     val answeredRounds: List<ExerciseRoundResult> = emptyList(),
     val selectedAnswerEmotionId: Int? = null,
+    val roundResolved: Boolean = false,
     val feedbackMessage: String = "",
     val currentRoundCorrectHits: Int = 0
 ) {

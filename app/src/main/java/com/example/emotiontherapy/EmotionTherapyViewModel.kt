@@ -52,6 +52,20 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val tokenBoardCells = selectedChildId
+        .flatMapLatest { childId ->
+            if (childId == null) flowOf(emptyList()) else repository.observeTokenBoardForChild(childId)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val tokenBoardSettings = selectedChildId
+        .flatMapLatest { childId ->
+            if (childId == null) flowOf(TokenBoardSettingsItem()) else {
+                repository.observeTokenBoardSettingsForChild(childId)
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TokenBoardSettingsItem())
+
     val uiState: StateFlow<EmotionTherapyUiState> = combine(
         children,
         selectedChild,
@@ -68,6 +82,10 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         state.copy(exerciseHistory = exerciseHistory)
     }.combine(rewardTokens) { state, rewardTokens ->
         state.copy(rewardTokens = rewardTokens)
+    }.combine(tokenBoardCells) { state, tokenBoardCells ->
+        state.copy(tokenBoardCells = tokenBoardCells)
+    }.combine(tokenBoardSettings) { state, tokenBoardSettings ->
+        state.copy(tokenBoardSettings = tokenBoardSettings)
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5_000),
@@ -77,6 +95,9 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
     fun selectChild(childId: Int) {
         selectedChildId.value = childId
         exerciseSession.value = null
+        viewModelScope.launch {
+            repository.ensureTokenBoard(childId)
+        }
     }
 
     fun clearSelectedChild() {
@@ -161,6 +182,54 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
+    fun deleteRewardTokens(tokenIds: List<Int>) {
+        if (tokenIds.isEmpty()) return
+
+        viewModelScope.launch {
+            repository.deleteRewardTokens(tokenIds)
+        }
+    }
+
+    fun assignTokenToBoardCell(cellIndex: Int, tokenId: Int?) {
+        val childId = selectedChildId.value ?: return
+
+        viewModelScope.launch {
+            repository.updateTokenBoardCellToken(childId, cellIndex, tokenId)
+        }
+    }
+
+    fun setTokenBoardCellReached(cellIndex: Int, isReached: Boolean) {
+        val childId = selectedChildId.value ?: return
+
+        viewModelScope.launch {
+            repository.updateTokenBoardCellReached(childId, cellIndex, isReached)
+        }
+    }
+
+    fun resetTokenBoard() {
+        val childId = selectedChildId.value ?: return
+
+        viewModelScope.launch {
+            repository.resetTokenBoard(childId)
+        }
+    }
+
+    fun updateTokenBoardTitle(title: String) {
+        val childId = selectedChildId.value ?: return
+        val cleanTitle = title.trim()
+        if (cleanTitle.isBlank()) return
+
+        viewModelScope.launch {
+            repository.updateTokenBoardTitle(childId, cleanTitle)
+        }
+    }
+
+    fun setSessionIncludeInEvolution(sessionId: Int, includeInEvolution: Boolean) {
+        viewModelScope.launch {
+            repository.setSessionIncludeInEvolution(sessionId, includeInEvolution)
+        }
+    }
+
     fun deleteEmotionImages(imageIds: List<Int>) {
         if (imageIds.isEmpty()) return
 
@@ -228,7 +297,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
 
     fun submitExerciseAnswer(answerEmotionId: Int) {
         val session = exerciseSession.value ?: return
-        if (session.exerciseType == ExerciseType.SHOW_THE_EMOTION && session.selectedAnswerEmotionId != null) {
+        if (session.exerciseType == ExerciseType.SHOW_THE_EMOTION && session.roundResolved) {
             return
         }
 
@@ -238,22 +307,23 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         }
 
         val isCorrect = answerEmotionId == session.currentRound.correctEmotionId
-        val roundResult = ExerciseRoundResult(
-            roundNumber = session.roundNumber,
-            promptEmotionName = session.currentRound.promptEmotionName,
-            selectedEmotionId = answerEmotionId,
-            correctEmotionId = session.currentRound.correctEmotionId
-        )
-        val feedback = if (isCorrect) {
-            "Correct. Great work."
+        val firstGuessAlreadyRecorded = session.answeredRounds.any { it.roundNumber == session.roundNumber }
+        val updatedAnsweredRounds = if (firstGuessAlreadyRecorded) {
+            session.answeredRounds
         } else {
-            "Not this one. The correct answer was ${session.currentRound.promptEmotionName}."
+            session.answeredRounds + ExerciseRoundResult(
+                roundNumber = session.roundNumber,
+                promptEmotionName = session.currentRound.promptEmotionName,
+                selectedEmotionId = answerEmotionId,
+                correctEmotionId = session.currentRound.correctEmotionId
+            )
         }
 
         exerciseSession.value = session.copy(
-            answeredRounds = session.answeredRounds + roundResult,
+            answeredRounds = updatedAnsweredRounds,
             selectedAnswerEmotionId = answerEmotionId,
-            feedbackMessage = feedback
+            roundResolved = isCorrect,
+            feedbackMessage = ""
         )
     }
 
@@ -304,6 +374,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
             roundNumber = session.roundNumber + 1,
             currentRound = nextRound,
             selectedAnswerEmotionId = null,
+            roundResolved = false,
             feedbackMessage = "",
             currentRoundCorrectHits = 0
         )
@@ -317,8 +388,9 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
             val decreasedHits = (session.currentRoundCorrectHits - 1).coerceAtLeast(0)
             exerciseSession.value = session.copy(
                 currentRoundCorrectHits = decreasedHits,
-                feedbackMessage = "Not this one. Keep looking for ${session.currentRound.promptEmotionName}.",
-                selectedAnswerEmotionId = answerEmotionId
+                feedbackMessage = "",
+                selectedAnswerEmotionId = answerEmotionId,
+                roundResolved = false
             )
             return
         }
@@ -330,7 +402,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
 
         if (selectedEmotions.size < 2) return
 
-        if (newHitCount >= 8) {
+        if (newHitCount >= session.findEmotionDifficulty.requiredCorrectHits) {
             val nextFocusEmotion = selectedEmotions
                 .filter { it.id != session.currentRound.correctEmotionId }
                 .ifEmpty { selectedEmotions }
@@ -343,16 +415,18 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
                     correctEmotionId = nextFocusEmotion.id
                 ),
                 currentRoundCorrectHits = 0,
-                feedbackMessage = "Great. Now find ${nextFocusEmotion.name}.",
-                selectedAnswerEmotionId = answerEmotionId
+                feedbackMessage = "",
+                selectedAnswerEmotionId = answerEmotionId,
+                roundResolved = false
             )
             return
         }
 
         exerciseSession.value = session.copy(
             currentRoundCorrectHits = newHitCount,
-            feedbackMessage = "Correct taps: $newHitCount/8",
-            selectedAnswerEmotionId = answerEmotionId
+            feedbackMessage = "",
+            selectedAnswerEmotionId = answerEmotionId,
+            roundResolved = false
         )
     }
 

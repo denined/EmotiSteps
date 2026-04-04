@@ -14,5 +14,6 @@ data class ExerciseHistoryItem(
     val totalRounds: Int,
     val correctRounds: Int,
     val accuracyPercent: Int,
+    val includeInEvolution: Boolean,
     val rounds: List<ExerciseHistoryRoundItem>
 )

@@ -14,9 +14,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         EmotionImageEntity::class,
         CompletedExerciseSessionEntity::class,
         ExerciseRoundResultEntity::class,
-        RewardTokenEntity::class
+        RewardTokenEntity::class,
+        TokenBoardCellEntity::class,
+        TokenBoardSettingsEntity::class
     ],
-    version = 3,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -81,6 +83,87 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `token_board_cells` (
+                        `childId` INTEGER NOT NULL,
+                        `cellIndex` INTEGER NOT NULL,
+                        `tokenId` INTEGER,
+                        `isReached` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`childId`, `cellIndex`),
+                        FOREIGN KEY(`childId`) REFERENCES `children`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`tokenId`) REFERENCES `reward_tokens`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_token_board_cells_childId` ON `token_board_cells` (`childId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_token_board_cells_tokenId` ON `token_board_cells` (`tokenId`)"
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `token_board_cells` (`childId`, `cellIndex`, `tokenId`, `isReached`)
+                    SELECT `children`.`id`, `indices`.`cellIndex`, NULL, 0
+                    FROM `children`
+                    CROSS JOIN (
+                        SELECT 0 AS `cellIndex`
+                        UNION ALL SELECT 1
+                        UNION ALL SELECT 2
+                        UNION ALL SELECT 3
+                        UNION ALL SELECT 4
+                        UNION ALL SELECT 5
+                        UNION ALL SELECT 6
+                        UNION ALL SELECT 7
+                        UNION ALL SELECT 8
+                        UNION ALL SELECT 9
+                        UNION ALL SELECT 10
+                        UNION ALL SELECT 11
+                    ) AS `indices`
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `token_board_settings` (
+                        `childId` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        PRIMARY KEY(`childId`),
+                        FOREIGN KEY(`childId`) REFERENCES `children`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_token_board_settings_childId` ON `token_board_settings` (`childId`)"
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO `token_board_settings` (`childId`, `title`)
+                    SELECT `id`, 'Token System'
+                    FROM `children`
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    ALTER TABLE `completed_exercise_sessions`
+                    ADD COLUMN `includeInEvolution` INTEGER NOT NULL DEFAULT 1
+                    """.trimIndent()
+                )
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -90,7 +173,13 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "emotion_therapy.db"
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
+                ).addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6
+                ).build()
                 INSTANCE = instance
                 instance
             }

@@ -8,6 +8,8 @@ import com.example.emotiontherapy.ExerciseHistoryRoundItem
 import com.example.emotiontherapy.ExerciseLayout
 import com.example.emotiontherapy.ExerciseRoundResult
 import com.example.emotiontherapy.RewardTokenItem
+import com.example.emotiontherapy.TokenBoardCellItem
+import com.example.emotiontherapy.TokenBoardSettingsItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -54,6 +56,7 @@ class EmotionRepository(
                     totalRounds = item.session.totalRounds,
                     correctRounds = item.session.correctRounds,
                     accuracyPercent = item.session.accuracyPercent,
+                    includeInEvolution = item.session.includeInEvolution,
                     rounds = item.results.sortedBy { it.roundNumber }.map { round ->
                         ExerciseHistoryRoundItem(
                             roundNumber = round.roundNumber,
@@ -77,8 +80,30 @@ class EmotionRepository(
         }
     }
 
+    fun observeTokenBoardForChild(childId: Int): Flow<List<TokenBoardCellItem>> {
+        return dao.observeTokenBoardForChild(childId).map { cells ->
+            cells.map { cell ->
+                TokenBoardCellItem(
+                    cellIndex = cell.cellIndex,
+                    tokenId = cell.tokenId,
+                    tokenUri = cell.tokenUri,
+                    isReached = cell.isReached
+                )
+            }
+        }
+    }
+
+    fun observeTokenBoardSettingsForChild(childId: Int): Flow<TokenBoardSettingsItem> {
+        return dao.observeTokenBoardSettingsForChild(childId).map { settings ->
+            TokenBoardSettingsItem(
+                title = settings?.title ?: "Token System"
+            )
+        }
+    }
+
     suspend fun addChild(name: String) {
-        dao.insertChild(ChildEntity(name = name))
+        val childId = dao.insertChild(ChildEntity(name = name)).toInt()
+        initializeTokenBoard(childId)
     }
 
     suspend fun renameChild(childId: Int, newName: String) {
@@ -148,7 +173,8 @@ class EmotionRepository(
                 endedAtMillis = endedAtMillis,
                 totalRounds = roundResults.size,
                 correctRounds = correctRounds,
-                accuracyPercent = accuracyPercent
+                accuracyPercent = accuracyPercent,
+                includeInEvolution = true
             )
         ).toInt()
 
@@ -177,5 +203,63 @@ class EmotionRepository(
                 )
             }
         )
+    }
+
+    suspend fun deleteRewardTokens(tokenIds: List<Int>) {
+        dao.deleteRewardTokensByIds(tokenIds)
+    }
+
+    suspend fun updateTokenBoardCellToken(childId: Int, cellIndex: Int, tokenId: Int?) {
+        ensureTokenBoard(childId)
+        dao.updateTokenBoardCellToken(childId, cellIndex, tokenId)
+    }
+
+    suspend fun updateTokenBoardCellReached(childId: Int, cellIndex: Int, isReached: Boolean) {
+        ensureTokenBoard(childId)
+        dao.updateTokenBoardCellReached(childId, cellIndex, isReached)
+    }
+
+    suspend fun resetTokenBoard(childId: Int) {
+        ensureTokenBoard(childId)
+        dao.resetTokenBoard(childId)
+    }
+
+    suspend fun updateTokenBoardTitle(childId: Int, title: String) {
+        ensureTokenBoard(childId)
+        ensureTokenBoardSettings(childId)
+        dao.updateTokenBoardTitle(childId, title)
+    }
+
+    suspend fun ensureTokenBoard(childId: Int) {
+        if (dao.getTokenBoardCellCount(childId) == 0) {
+            initializeTokenBoard(childId)
+        }
+        ensureTokenBoardSettings(childId)
+    }
+
+    private suspend fun initializeTokenBoard(childId: Int) {
+        dao.insertTokenBoardCells(
+            List(12) { index ->
+                TokenBoardCellEntity(
+                    childId = childId,
+                    cellIndex = index
+                )
+            }
+        )
+    }
+
+    private suspend fun ensureTokenBoardSettings(childId: Int) {
+        if (dao.getTokenBoardSettingsCount(childId) == 0) {
+            dao.insertTokenBoardSettings(
+                TokenBoardSettingsEntity(
+                    childId = childId,
+                    title = "Token System"
+                )
+            )
+        }
+    }
+
+    suspend fun setSessionIncludeInEvolution(sessionId: Int, includeInEvolution: Boolean) {
+        dao.updateSessionIncludeInEvolution(sessionId, includeInEvolution)
     }
 }

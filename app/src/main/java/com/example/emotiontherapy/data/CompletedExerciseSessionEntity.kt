@@ -25,5 +25,6 @@ data class CompletedExerciseSessionEntity(
     val endedAtMillis: Long,
     val totalRounds: Int,
     val correctRounds: Int,
-    val accuracyPercent: Int
+    val accuracyPercent: Int,
+    val includeInEvolution: Boolean = true
 )
