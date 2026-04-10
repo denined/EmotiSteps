@@ -1,4 +1,4 @@
-package com.example.emotiontherapy
+package com.example.emotiontherapy.model
 
 data class ExerciseHistoryRoundItem(
     val roundNumber: Int,

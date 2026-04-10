@@ -1,4 +1,4 @@
-package com.example.emotiontherapy.data
+package com.example.emotiontherapy.data.local
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "reward_tokens",
+    tableName = "token_board_settings",
     foreignKeys = [
         ForeignKey(
             entity = ChildEntity::class,
@@ -17,8 +17,7 @@ import androidx.room.PrimaryKey
     ],
     indices = [Index("childId")]
 )
-data class RewardTokenEntity(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val childId: Int,
-    val uri: String
+data class TokenBoardSettingsEntity(
+    @PrimaryKey val childId: Int,
+    val title: String = "Token System"
 )

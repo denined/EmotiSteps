@@ -1,4 +1,12 @@
-package com.example.emotiontherapy
+package com.example.emotiontherapy.presentation
+
+import com.example.emotiontherapy.model.Child
+import com.example.emotiontherapy.model.EmotionItem
+import com.example.emotiontherapy.model.ExerciseHistoryItem
+import com.example.emotiontherapy.model.ExerciseSession
+import com.example.emotiontherapy.model.RewardTokenItem
+import com.example.emotiontherapy.model.TokenBoardCellItem
+import com.example.emotiontherapy.model.TokenBoardSettingsItem
 
 data class EmotionTherapyUiState(
     val children: List<Child> = emptyList(),

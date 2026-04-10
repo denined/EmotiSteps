@@ -48,8 +48,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.emotiontherapy.Child
-import com.example.emotiontherapy.EmotionItem
+import com.example.emotiontherapy.model.Child
+import com.example.emotiontherapy.model.EmotionItem
 import com.example.emotiontherapy.ui.components.ComingSoonScreen
 import com.example.emotiontherapy.ui.components.EmotionThumbnail
 import com.example.emotiontherapy.ui.components.FirstTimeTipDialog

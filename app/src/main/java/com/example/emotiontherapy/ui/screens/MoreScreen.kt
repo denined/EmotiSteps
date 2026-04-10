@@ -27,7 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.emotiontherapy.Child
+import com.example.emotiontherapy.model.Child
 import com.example.emotiontherapy.ui.components.ComingSoonScreen
 
 @Composable

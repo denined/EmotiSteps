@@ -1,4 +1,4 @@
-package com.example.emotiontherapy
+package com.example.emotiontherapy.model
 
 enum class ExerciseType {
     SHOW_THE_EMOTION,

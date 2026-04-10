@@ -50,10 +50,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.RoundedCornerShape
-import com.example.emotiontherapy.Child
-import com.example.emotiontherapy.RewardTokenItem
-import com.example.emotiontherapy.TokenBoardCellItem
-import com.example.emotiontherapy.TokenBoardSettingsItem
+import com.example.emotiontherapy.model.Child
+import com.example.emotiontherapy.model.RewardTokenItem
+import com.example.emotiontherapy.model.TokenBoardCellItem
+import com.example.emotiontherapy.model.TokenBoardSettingsItem
 import com.example.emotiontherapy.ui.components.ComingSoonScreen
 import com.example.emotiontherapy.ui.components.EmotionThumbnail
 import com.example.emotiontherapy.ui.components.FirstTimeTipDialog
