@@ -1,4 +1,4 @@
-package com.example.emotiontherapy.data
+package com.example.emotiontherapy.data.local
 
 import androidx.room.Embedded
 import androidx.room.Relation

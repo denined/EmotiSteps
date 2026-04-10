@@ -1,4 +1,4 @@
-package com.example.emotiontherapy.data
+package com.example.emotiontherapy.data.local
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -6,19 +6,19 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "emotions",
+    tableName = "emotion_images",
     foreignKeys = [
         ForeignKey(
-            entity = ChildEntity::class,
+            entity = EmotionEntity::class,
             parentColumns = ["id"],
-            childColumns = ["childId"],
+            childColumns = ["emotionId"],
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("childId")]
+    indices = [Index("emotionId")]
 )
-data class EmotionEntity(
+data class EmotionImageEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val childId: Int,
-    val name: String
+    val emotionId: Int,
+    val uri: String
 )

@@ -1,11 +1,22 @@
-package com.example.emotiontherapy
+package com.example.emotiontherapy.presentation
 
 import android.app.Application
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
-import com.example.emotiontherapy.data.AppDatabase
-import com.example.emotiontherapy.data.EmotionRepository
+import com.example.emotiontherapy.data.local.AppDatabase
+import com.example.emotiontherapy.data.repository.EmotionRepository
+import com.example.emotiontherapy.model.EmotionItem
+import com.example.emotiontherapy.model.ExerciseCard
+import com.example.emotiontherapy.model.ExerciseLayout
+import com.example.emotiontherapy.model.ExerciseRound
+import com.example.emotiontherapy.model.ExerciseRoundResult
+import com.example.emotiontherapy.model.ExerciseSession
+import com.example.emotiontherapy.model.ExerciseType
+import com.example.emotiontherapy.model.FindEmotionDifficulty
+import com.example.emotiontherapy.model.TokenBoardSettingsItem
+import com.example.emotiontherapy.model.requiredCorrectHits
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +28,10 @@ import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class EmotionTherapyViewModel(application: Application) : AndroidViewModel(application) {
+class EmotionTherapyStore(
+    application: Application,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+) {
     private val repository = EmotionRepository(
         AppDatabase.getDatabase(application).emotionTherapyDao()
     )
@@ -26,37 +40,37 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
     private val exerciseSession = MutableStateFlow<ExerciseSession?>(null)
 
     private val children = repository.observeChildren()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val selectedChild = selectedChildId
         .flatMapLatest { childId ->
             if (childId == null) flowOf(null) else repository.observeChild(childId)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val emotions = selectedChildId
         .flatMapLatest { childId ->
             if (childId == null) flowOf(emptyList()) else repository.observeEmotionsForChild(childId)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val exerciseHistory = selectedChildId
         .flatMapLatest { childId ->
             if (childId == null) flowOf(emptyList()) else repository.observeExerciseHistoryForChild(childId)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val rewardTokens = selectedChildId
         .flatMapLatest { childId ->
             if (childId == null) flowOf(emptyList()) else repository.observeRewardTokensForChild(childId)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val tokenBoardCells = selectedChildId
         .flatMapLatest { childId ->
             if (childId == null) flowOf(emptyList()) else repository.observeTokenBoardForChild(childId)
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val tokenBoardSettings = selectedChildId
         .flatMapLatest { childId ->
@@ -64,7 +78,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
                 repository.observeTokenBoardSettingsForChild(childId)
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TokenBoardSettingsItem())
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), TokenBoardSettingsItem())
 
     val uiState: StateFlow<EmotionTherapyUiState> = combine(
         children,
@@ -78,16 +92,16 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
             emotions = emotions,
             exerciseSession = exerciseSession
         )
-    }.combine(exerciseHistory) { state, exerciseHistory ->
-        state.copy(exerciseHistory = exerciseHistory)
-    }.combine(rewardTokens) { state, rewardTokens ->
-        state.copy(rewardTokens = rewardTokens)
-    }.combine(tokenBoardCells) { state, tokenBoardCells ->
-        state.copy(tokenBoardCells = tokenBoardCells)
-    }.combine(tokenBoardSettings) { state, tokenBoardSettings ->
-        state.copy(tokenBoardSettings = tokenBoardSettings)
+    }.combine(exerciseHistory) { state, history ->
+        state.copy(exerciseHistory = history)
+    }.combine(rewardTokens) { state, tokens ->
+        state.copy(rewardTokens = tokens)
+    }.combine(tokenBoardCells) { state, cells ->
+        state.copy(tokenBoardCells = cells)
+    }.combine(tokenBoardSettings) { state, settings ->
+        state.copy(tokenBoardSettings = settings)
     }.stateIn(
-        viewModelScope,
+        scope,
         SharingStarted.WhileSubscribed(5_000),
         EmotionTherapyUiState()
     )
@@ -95,7 +109,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
     fun selectChild(childId: Int) {
         selectedChildId.value = childId
         exerciseSession.value = null
-        viewModelScope.launch {
+        scope.launch {
             repository.ensureTokenBoard(childId)
         }
     }
@@ -113,7 +127,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val cleanName = name.trim()
         if (cleanName.isBlank()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.addChild(cleanName)
         }
     }
@@ -122,13 +136,13 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val cleanName = newName.trim()
         if (cleanName.isBlank()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.renameChild(childId, cleanName)
         }
     }
 
     fun deleteChild(childId: Int) {
-        viewModelScope.launch {
+        scope.launch {
             repository.deleteChild(childId)
             if (selectedChildId.value == childId) {
                 selectedChildId.value = null
@@ -143,7 +157,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val sanitizedUris = imageUris.distinct()
         if (cleanName.isBlank() || sanitizedUris.isEmpty()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.addEmotion(childId, cleanName, sanitizedUris)
         }
     }
@@ -152,7 +166,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val sanitizedUris = imageUris.distinct()
         if (sanitizedUris.isEmpty()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.addImagesToEmotion(emotionId, sanitizedUris)
         }
     }
@@ -161,14 +175,22 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val cleanName = newName.trim()
         if (cleanName.isBlank()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.renameEmotion(emotionId, cleanName)
         }
     }
 
     fun deleteEmotion(emotionId: Int) {
-        viewModelScope.launch {
+        scope.launch {
             repository.deleteEmotion(emotionId)
+        }
+    }
+
+    fun deleteEmotionImages(imageIds: List<Int>) {
+        if (imageIds.isEmpty()) return
+
+        scope.launch {
+            repository.deleteEmotionImages(imageIds)
         }
     }
 
@@ -177,7 +199,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val sanitizedUris = imageUris.distinct()
         if (sanitizedUris.isEmpty()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.addRewardTokens(childId, sanitizedUris)
         }
     }
@@ -185,7 +207,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
     fun deleteRewardTokens(tokenIds: List<Int>) {
         if (tokenIds.isEmpty()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.deleteRewardTokens(tokenIds)
         }
     }
@@ -193,7 +215,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
     fun assignTokenToBoardCell(cellIndex: Int, tokenId: Int?) {
         val childId = selectedChildId.value ?: return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.updateTokenBoardCellToken(childId, cellIndex, tokenId)
         }
     }
@@ -201,7 +223,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
     fun setTokenBoardCellReached(cellIndex: Int, isReached: Boolean) {
         val childId = selectedChildId.value ?: return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.updateTokenBoardCellReached(childId, cellIndex, isReached)
         }
     }
@@ -209,7 +231,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
     fun resetTokenBoard() {
         val childId = selectedChildId.value ?: return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.resetTokenBoard(childId)
         }
     }
@@ -219,22 +241,14 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val cleanTitle = title.trim()
         if (cleanTitle.isBlank()) return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.updateTokenBoardTitle(childId, cleanTitle)
         }
     }
 
     fun setSessionIncludeInEvolution(sessionId: Int, includeInEvolution: Boolean) {
-        viewModelScope.launch {
+        scope.launch {
             repository.setSessionIncludeInEvolution(sessionId, includeInEvolution)
-        }
-    }
-
-    fun deleteEmotionImages(imageIds: List<Int>) {
-        if (imageIds.isEmpty()) return
-
-        viewModelScope.launch {
-            repository.deleteEmotionImages(imageIds)
         }
     }
 
@@ -332,7 +346,7 @@ class EmotionTherapyViewModel(application: Application) : AndroidViewModel(appli
         val session = exerciseSession.value ?: return
         val layout = session.layout ?: return
 
-        viewModelScope.launch {
+        scope.launch {
             repository.saveCompletedExerciseSession(
                 childId = childId,
                 layout = layout,

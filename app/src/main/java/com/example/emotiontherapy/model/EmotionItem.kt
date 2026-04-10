@@ -1,4 +1,4 @@
-package com.example.emotiontherapy
+package com.example.emotiontherapy.model
 
 data class EmotionImageItem(
     val id: Int,

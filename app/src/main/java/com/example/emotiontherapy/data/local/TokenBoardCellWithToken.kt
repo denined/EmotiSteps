@@ -1,4 +1,4 @@
-package com.example.emotiontherapy.data
+package com.example.emotiontherapy.data.local
 
 data class TokenBoardCellWithToken(
     val cellIndex: Int,
