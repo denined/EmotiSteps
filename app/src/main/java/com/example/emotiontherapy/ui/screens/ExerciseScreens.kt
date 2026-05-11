@@ -772,6 +772,7 @@ private fun ShowEmotionAnswerCard(
 }
 
 @Composable
+@Suppress("UnusedBoxWithConstraintsScope")
 private fun FindEmotionPlayArea(
     session: ExerciseSession,
     emotions: List<EmotionItem>,
@@ -843,12 +844,15 @@ private fun FindEmotionPlayArea(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
+            val areaWidth = maxWidth
+            val areaHeight = maxHeight
+
             activeBubbles.forEach { bubble ->
                 key(bubble.id) {
                     FindEmotionBubbleItem(
                         bubble = bubble,
-                        areaWidth = maxWidth,
-                        areaHeight = maxHeight,
+                        areaWidth = areaWidth,
+                        areaHeight = areaHeight,
                         isCorrect = bubble.emotionId == session.currentRound.correctEmotionId,
                         onCorrectTap = {
                             activeBubbles.removeAll { it.id == bubble.id }

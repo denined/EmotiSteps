@@ -1,5 +1,6 @@
 package com.example.emotiontherapy.ui.screens
 
+import androidx.camera.core.ExperimentalGetImage
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -736,6 +737,7 @@ private class FaceDetectionAnalyzer(
 ) : ImageAnalysis.Analyzer {
     private val isProcessing = AtomicBoolean(false)
 
+    @ExperimentalGetImage
     override fun analyze(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
         if (mediaImage == null || !isProcessing.compareAndSet(false, true)) {

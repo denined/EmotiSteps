@@ -22,7 +22,6 @@ class EmotionRecognitionEngine private constructor(
     private var labels: List<String> = emptyList()
     @Volatile
     private var usingModel = false
-
     fun initialize(): Task<Void> {
         return TfLite.initialize(context).addOnSuccessListener {
             try {

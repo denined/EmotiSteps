@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Paint
+import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.foundation.Canvas
@@ -53,6 +54,8 @@ import com.example.emotiontherapy.ui.components.ComingSoonScreen
 import com.example.emotiontherapy.ui.components.FirstTimeTipDialog
 import java.text.DateFormat
 import java.text.SimpleDateFormat
+import java.io.File
+import java.io.FileOutputStream
 import java.util.Date
 import java.util.Locale
 
@@ -605,31 +608,48 @@ private fun exportEvolutionChart(
         append(".png")
     }
 
-    val resolver = context.contentResolver
-    val contentValues = ContentValues().apply {
-        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-        put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-        put(
-            MediaStore.MediaColumns.RELATIVE_PATH,
-            Environment.DIRECTORY_DOWNLOADS + "/EmotionTherapyApp"
-        )
-        put(MediaStore.MediaColumns.IS_PENDING, 1)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val resolver = context.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/EmotionTherapyApp"
+            )
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            ?: return "Failed to create chart file."
+
+        return try {
+            resolver.openOutputStream(uri)?.use { output ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            } ?: return "Failed to open chart file for writing."
+
+            contentValues.clear()
+            contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            resolver.update(uri, contentValues, null, null)
+            "Chart downloaded to Downloads/EmotionTherapyApp."
+        } catch (_: Exception) {
+            resolver.delete(uri, null, null)
+            "Failed to download chart."
+        }
     }
 
-    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-        ?: return "Failed to create chart file."
-
     return try {
-        resolver.openOutputStream(uri)?.use { output ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
-        } ?: return "Failed to open chart file for writing."
+        val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            ?: return "Failed to access app downloads folder."
+        val exportDir = File(downloadsDir, "EmotionTherapyApp").apply { mkdirs() }
+        val outputFile = File(exportDir, fileName)
 
-        contentValues.clear()
-        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-        resolver.update(uri, contentValues, null, null)
-        "Chart downloaded to Downloads/EmotionTherapyApp."
+        FileOutputStream(outputFile).use { output ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+        }
+
+        "Chart saved to the app downloads folder."
     } catch (_: Exception) {
-        resolver.delete(uri, null, null)
         "Failed to download chart."
     }
 }
