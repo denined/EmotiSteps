@@ -16,20 +16,24 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.example.emotiontherapy.Child
-import com.example.emotiontherapy.EmotionTherapyUiState
-import com.example.emotiontherapy.EmotionTherapyViewModel
+import com.example.emotiontherapy.model.Child
+import com.example.emotiontherapy.model.ExerciseType
+import com.example.emotiontherapy.presentation.ChildrenViewModel
+import com.example.emotiontherapy.presentation.EmotionsViewModel
+import com.example.emotiontherapy.presentation.EmotionTherapyUiState
+import com.example.emotiontherapy.presentation.EvolutionViewModel
+import com.example.emotiontherapy.presentation.ExercisesViewModel
+import com.example.emotiontherapy.presentation.TokensViewModel
 import com.example.emotiontherapy.ui.components.BottomNavigationBar
-import com.example.emotiontherapy.ui.components.ComingSoonScreen
+import com.example.emotiontherapy.ui.screens.ExerciseCompleteScreen
+import com.example.emotiontherapy.ui.screens.ExerciseSessionScreen
+import com.example.emotiontherapy.ui.screens.ExerciseStatsScreen
 import com.example.emotiontherapy.ui.screens.AddChildScreen
+import com.example.emotiontherapy.ui.screens.AddEmotionFormScreen
 import com.example.emotiontherapy.ui.screens.AddEmotionsScreen
 import com.example.emotiontherapy.ui.screens.AiRecognitionScreen
 import com.example.emotiontherapy.ui.screens.EmotionDetailScreen
 import com.example.emotiontherapy.ui.screens.EvolutionScreen
-import com.example.emotiontherapy.ExerciseType
-import com.example.emotiontherapy.ui.screens.ExerciseCompleteScreen
-import com.example.emotiontherapy.ui.screens.ExerciseSessionScreen
-import com.example.emotiontherapy.ui.screens.ExerciseStatsScreen
 import com.example.emotiontherapy.ui.screens.ExercisesMenuScreen
 import com.example.emotiontherapy.ui.screens.FindEmotionConfigScreen
 import com.example.emotiontherapy.ui.screens.MainScreen
@@ -40,7 +44,11 @@ import com.example.emotiontherapy.ui.screens.ShowEmotionConfigScreen
 @Composable
 fun AppNavGraph(
     uiState: EmotionTherapyUiState,
-    viewModel: EmotionTherapyViewModel
+    childrenViewModel: ChildrenViewModel,
+    emotionsViewModel: EmotionsViewModel,
+    exercisesViewModel: ExercisesViewModel,
+    evolutionViewModel: EvolutionViewModel,
+    tokensViewModel: TokensViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -80,7 +88,14 @@ fun AppNavGraph(
                     children = uiState.children,
                     selectedChild = uiState.selectedChild,
                     onChildClick = { child ->
-                        viewModel.selectChild(child.id)
+                        if (uiState.selectedChild?.id == child.id) {
+                            childrenViewModel.clearSelectedChild()
+                        } else {
+                            childrenViewModel.selectChild(child.id)
+                        }
+                    },
+                    onRenameChild = { childId, newName ->
+                        childrenViewModel.renameChild(childId, newName)
                     },
                     onDeleteChildClick = { child ->
                         childPendingDelete = child
@@ -92,7 +107,7 @@ fun AppNavGraph(
             composable(ADD_CHILD_ROUTE) {
                 AddChildScreen(
                     onSave = { childName ->
-                        viewModel.addChild(childName)
+                        childrenViewModel.addChild(childName)
                         navController.popBackStack()
                     },
                     onCancel = { navController.popBackStack() }
@@ -103,8 +118,15 @@ fun AppNavGraph(
                 MoreScreen(
                     child = uiState.selectedChild,
                     onSeeEvolutionClick = { navController.navigate(EVOLUTION_ROUTE) },
-                    onChooseTokensClick = { navController.navigate(TOKENS_ROUTE) },
-                    onAiRecognitionClick = { navController.navigate(AI_ROUTE) }
+                    onTokensClick = { navController.navigate(TOKENS_ROUTE) },
+                    onAiRecognitionClick = { navController.navigate(AI_ROUTE) },
+                    onSelectChildClick = {
+                        navController.navigate(MAIN_ROUTE) {
+                            popUpTo(MAIN_ROUTE) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
 
@@ -112,6 +134,9 @@ fun AppNavGraph(
                 EvolutionScreen(
                     child = uiState.selectedChild,
                     history = uiState.exerciseHistory,
+                    onSetSessionIncludeInEvolution = { sessionId, includeInEvolution ->
+                        evolutionViewModel.setSessionIncludeInEvolution(sessionId, includeInEvolution)
+                    },
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -120,8 +145,25 @@ fun AppNavGraph(
                 RewardTokensScreen(
                     child = uiState.selectedChild,
                     tokens = uiState.rewardTokens,
+                    tokenBoardCells = uiState.tokenBoardCells,
+                    tokenBoardSettings = uiState.tokenBoardSettings,
                     onAddTokens = { imageUris ->
-                        viewModel.addRewardTokens(imageUris)
+                        tokensViewModel.addRewardTokens(imageUris)
+                    },
+                    onDeleteTokens = { tokenIds ->
+                        tokensViewModel.deleteRewardTokens(tokenIds)
+                    },
+                    onAssignTokenToCell = { cellIndex, tokenId ->
+                        tokensViewModel.assignTokenToBoardCell(cellIndex, tokenId)
+                    },
+                    onSetCellReached = { cellIndex, isReached ->
+                        tokensViewModel.setTokenBoardCellReached(cellIndex, isReached)
+                    },
+                    onResetTokenBoard = {
+                        tokensViewModel.resetTokenBoard()
+                    },
+                    onUpdateTokenBoardTitle = { title ->
+                        tokensViewModel.updateTokenBoardTitle(title)
                     },
                     onBack = { navController.popBackStack() }
                 )
@@ -131,12 +173,32 @@ fun AppNavGraph(
                 AddEmotionsScreen(
                     child = uiState.selectedChild,
                     emotions = uiState.emotions,
-                    onSaveEmotion = { emotionName, imageUris ->
-                        viewModel.addEmotion(emotionName, imageUris)
-                    },
+                    onAddEmotionClick = { navController.navigate(ADD_EMOTION_FORM_ROUTE) },
                     onEmotionClick = { emotion ->
                         selectedEmotionId = emotion.id
                         navController.navigate(EMOTION_DETAIL_ROUTE)
+                    },
+                    onDeleteEmotion = { emotionId ->
+                        emotionsViewModel.deleteEmotion(emotionId)
+                        if (selectedEmotionId == emotionId) {
+                            selectedEmotionId = null
+                        }
+                    },
+                    onBack = {
+                        navController.navigate(MAIN_ROUTE) {
+                            popUpTo(MAIN_ROUTE) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+            }
+
+            composable(ADD_EMOTION_FORM_ROUTE) {
+                AddEmotionFormScreen(
+                    child = uiState.selectedChild,
+                    onSaveEmotion = { emotionName, imageUris ->
+                        emotionsViewModel.addEmotion(emotionName, imageUris)
                     },
                     onBack = { navController.popBackStack() }
                 )
@@ -146,10 +208,13 @@ fun AppNavGraph(
                 EmotionDetailScreen(
                     emotion = uiState.emotions.find { it.id == selectedEmotionId },
                     onAddImages = { emotionId, imageUris ->
-                        viewModel.addImagesToEmotion(emotionId, imageUris)
+                        emotionsViewModel.addImagesToEmotion(emotionId, imageUris)
+                    },
+                    onRenameEmotion = { emotionId, newName ->
+                        emotionsViewModel.renameEmotion(emotionId, newName)
                     },
                     onDeleteImages = { imageIds ->
-                        viewModel.deleteEmotionImages(imageIds)
+                        emotionsViewModel.deleteEmotionImages(imageIds)
                     },
                     onBack = {
                         selectedEmotionId = null
@@ -161,6 +226,13 @@ fun AppNavGraph(
             composable(EXERCISES_ROUTE) {
                 ExercisesMenuScreen(
                     child = uiState.selectedChild,
+                    onSelectChildClick = {
+                        navController.navigate(MAIN_ROUTE) {
+                            popUpTo(MAIN_ROUTE) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onShowEmotionClick = { navController.navigate(SHOW_EMOTION_ROUTE) },
                     onFindEmotionClick = { navController.navigate(FIND_EMOTION_ROUTE) }
                 )
@@ -171,15 +243,22 @@ fun AppNavGraph(
                     child = uiState.selectedChild,
                     emotions = uiState.emotions.filter { it.imageUris.isNotEmpty() },
                     onStartSingleEmotion = { focusEmotionId, distractorEmotionIds ->
-                        viewModel.startSingleEmotionExercise(focusEmotionId, distractorEmotionIds)
+                        exercisesViewModel.startSingleEmotionExercise(focusEmotionId, distractorEmotionIds)
                         navController.navigate(EXERCISE_SESSION_ROUTE)
                     },
                     onStartMixedEmotions = { emotionIds ->
-                        viewModel.startMixedEmotionExercise(emotionIds)
+                        exercisesViewModel.startMixedEmotionExercise(emotionIds)
                         navController.navigate(EXERCISE_SESSION_ROUTE)
                     },
+                    onSelectChildClick = {
+                        navController.navigate(MAIN_ROUTE) {
+                            popUpTo(MAIN_ROUTE) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
                     onBack = {
-                        viewModel.clearExerciseSession()
+                        exercisesViewModel.clearExerciseSession()
                         navController.popBackStack()
                     }
                 )
@@ -190,8 +269,15 @@ fun AppNavGraph(
                     child = uiState.selectedChild,
                     emotions = uiState.emotions.filter { it.imageUris.isNotEmpty() },
                     onStartFindEmotion = { emotionIds, difficulty ->
-                        viewModel.startFindEmotionExercise(emotionIds, difficulty)
+                        exercisesViewModel.startFindEmotionExercise(emotionIds, difficulty)
                         navController.navigate(EXERCISE_SESSION_ROUTE)
+                    },
+                    onSelectChildClick = {
+                        navController.navigate(MAIN_ROUTE) {
+                            popUpTo(MAIN_ROUTE) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     },
                     onBack = { navController.popBackStack() }
                 )
@@ -202,20 +288,20 @@ fun AppNavGraph(
                     session = uiState.exerciseSession,
                     emotions = uiState.emotions,
                     onAnswerSelected = { emotionId ->
-                        viewModel.submitExerciseAnswer(emotionId)
+                        exercisesViewModel.submitExerciseAnswer(emotionId)
                     },
-                    onNextRound = { viewModel.nextExerciseRound() },
+                    onNextRound = { exercisesViewModel.nextExerciseRound() },
                     onEndSession = {
                         if (uiState.exerciseSession?.exerciseType == ExerciseType.SHOW_THE_EMOTION) {
-                            viewModel.endExerciseSession()
+                            exercisesViewModel.endExerciseSession()
                             navController.navigate(EXERCISE_COMPLETE_ROUTE)
                         } else {
-                            viewModel.clearExerciseSession()
+                            exercisesViewModel.clearExerciseSession()
                             navController.popBackStack(EXERCISES_ROUTE, inclusive = false)
                         }
                     },
                     onBack = {
-                        viewModel.clearExerciseSession()
+                        exercisesViewModel.clearExerciseSession()
                         navController.popBackStack()
                     }
                 )
@@ -226,7 +312,7 @@ fun AppNavGraph(
                     session = uiState.exerciseSession,
                     onShowStatistics = { navController.navigate(EXERCISE_STATS_ROUTE) },
                     onClose = {
-                        viewModel.clearExerciseSession()
+                        exercisesViewModel.clearExerciseSession()
                         navController.popBackStack(EXERCISES_ROUTE, inclusive = false)
                     }
                 )
@@ -235,7 +321,11 @@ fun AppNavGraph(
             composable(EXERCISE_STATS_ROUTE) {
                 ExerciseStatsScreen(
                     session = uiState.exerciseSession,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onClose = {
+                        exercisesViewModel.clearExerciseSession()
+                        navController.popBackStack(EXERCISES_ROUTE, inclusive = false)
+                    }
                 )
             }
 
@@ -260,7 +350,7 @@ fun AppNavGraph(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteChild(pendingChild.id)
+                        childrenViewModel.deleteChild(pendingChild.id)
                         childPendingDelete = null
                     }
                 ) {

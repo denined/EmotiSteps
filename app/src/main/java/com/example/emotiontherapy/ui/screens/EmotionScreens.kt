@@ -25,12 +25,16 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,24 +48,178 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.emotiontherapy.Child
-import com.example.emotiontherapy.EmotionItem
+import com.example.emotiontherapy.model.Child
+import com.example.emotiontherapy.model.EmotionItem
 import com.example.emotiontherapy.ui.components.ComingSoonScreen
 import com.example.emotiontherapy.ui.components.EmotionThumbnail
+import com.example.emotiontherapy.ui.components.FirstTimeTipDialog
 
 @Composable
 fun AddEmotionsScreen(
     child: Child?,
     emotions: List<EmotionItem>,
-    onSaveEmotion: (String, List<String>) -> Unit,
+    onAddEmotionClick: () -> Unit,
     onEmotionClick: (EmotionItem) -> Unit,
+    onDeleteEmotion: (Int) -> Unit,
     onBack: () -> Unit
 ) {
     if (child == null) {
         ComingSoonScreen(
             title = "No Child Selected",
             message = "Return and select a child profile first.",
-            onBack = onBack
+            onBack = onBack,
+            actionLabel = "Select Child"
+        )
+        return
+    }
+
+    FirstTimeTipDialog(
+        key = "tip_emotions_screen",
+        title = "Emotions",
+        message = "Use the plus button to add a new emotion, and tap any emotion card later to manage its pictures."
+    )
+
+    var emotionPendingDelete by remember { mutableStateOf<EmotionItem?>(null) }
+
+    val pendingDeleteEmotion = emotionPendingDelete
+    if (pendingDeleteEmotion != null) {
+        AlertDialog(
+            onDismissRequest = { emotionPendingDelete = null },
+            title = { Text("Delete Emotion") },
+            text = {
+                Text("Delete ${pendingDeleteEmotion.name} and all of its pictures?")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteEmotion(pendingDeleteEmotion.id)
+                        emotionPendingDelete = null
+                    }
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { emotionPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Emotions - ${child.name}",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            IconButton(onClick = onAddEmotionClick) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Add new emotion"
+                )
+            }
+        }
+
+        if (emotions.isNotEmpty()) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(emotions, key = { it.id }) { emotion ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onEmotionClick(emotion) },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = emotion.name,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = { emotionPendingDelete = emotion }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Delete,
+                                        contentDescription = "Delete emotion"
+                                    )
+                                }
+                            }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                itemsIndexed(
+                                    emotion.images,
+                                    key = { index, image -> "${emotion.id}-$index-${image.id}" }
+                                ) { _, image ->
+                                    EmotionThumbnail(uriString = image.uri, modifier = Modifier.size(88.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "No emotions added yet",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Tap the plus button to create the first emotion and add pictures for ${child.name}.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AddEmotionFormScreen(
+    child: Child?,
+    onSaveEmotion: (String, List<String>) -> Unit,
+    onBack: () -> Unit
+) {
+    if (child == null) {
+        ComingSoonScreen(
+            title = "No Child Selected",
+            message = "Return and select a child profile first.",
+            onBack = onBack,
+            actionLabel = "Select Child"
         )
         return
     }
@@ -98,9 +256,10 @@ fun AddEmotionsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
-            text = "Add Emotions - ${child.name}",
+            text = "Add Emotion - ${child.name}",
             fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         OutlinedTextField(
@@ -113,15 +272,14 @@ fun AddEmotionsScreen(
 
         Button(
             onClick = { imagePicker.launch(arrayOf("image/*")) },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.tertiary,
+                contentColor = MaterialTheme.colorScheme.onTertiary
+            )
         ) {
             Text("Select Pictures From Device")
         }
-
-        Text(
-            text = "Selected pictures for new emotion: ${selectedImageUris.size}",
-            style = MaterialTheme.typography.bodyMedium
-        )
 
         if (selectedImageUris.isNotEmpty()) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -148,69 +306,15 @@ fun AddEmotionsScreen(
                 }
 
                 onSaveEmotion(trimmedName, selectedImageUris)
-                emotionName = ""
-                selectedImageUris = emptyList()
-                formError = ""
+                onBack()
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
         ) {
             Text("Save Emotion")
-        }
-
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Saved emotions: ${emotions.size}",
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Tap an emotion to manage its existing pictures.",
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-
-        if (emotions.isNotEmpty()) {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(emotions, key = { it.id }) { emotion ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onEmotionClick(emotion) }
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(text = emotion.name, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
-                            Text(
-                                text = "Pictures: ${emotion.images.size}",
-                                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-                            )
-                            Text(
-                                text = "Tap to view and manage pictures",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                itemsIndexed(
-                                    emotion.images,
-                                    key = { index, image -> "${emotion.id}-$index-${image.id}" }
-                                ) { _, image ->
-                                    EmotionThumbnail(uriString = image.uri, modifier = Modifier.size(88.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            Spacer(modifier = Modifier.weight(1f))
-        }
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
         }
     }
 }
@@ -220,6 +324,7 @@ fun AddEmotionsScreen(
 fun EmotionDetailScreen(
     emotion: EmotionItem?,
     onAddImages: (Int, List<String>) -> Unit,
+    onRenameEmotion: (Int, String) -> Unit,
     onDeleteImages: (List<Int>) -> Unit,
     onBack: () -> Unit
 ) {
@@ -235,6 +340,8 @@ fun EmotionDetailScreen(
     val context = LocalContext.current
     var selectedImageIds by remember(emotion.id) { mutableStateOf(setOf<Int>()) }
     var showDeleteDialog by remember(emotion.id) { mutableStateOf(false) }
+    var showRenameDialog by remember(emotion.id) { mutableStateOf(false) }
+    var renameValue by remember(emotion.id) { mutableStateOf(emotion.name) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
@@ -274,7 +381,37 @@ fun EmotionDetailScreen(
                 }
             },
             dismissButton = {
-                Button(onClick = { showDeleteDialog = false }) {
+                OutlinedButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showRenameDialog) {
+        AlertDialog(
+            onDismissRequest = { showRenameDialog = false },
+            title = { Text("Rename Emotion") },
+            text = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    label = { Text("Emotion Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onRenameEmotion(emotion.id, renameValue)
+                        showRenameDialog = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showRenameDialog = false }) {
                     Text("Cancel")
                 }
             }
@@ -293,16 +430,24 @@ fun EmotionDetailScreen(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = emotion.name, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    text = if (selectedImageIds.isEmpty()) {
-                        "Long press an image to start selecting pictures for deletion."
-                    } else {
-                        "${selectedImageIds.size} picture(s) selected"
-                    },
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                if (selectedImageIds.isNotEmpty()) {
+                    Text(
+                        text = "${selectedImageIds.size} picture(s) selected",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
             Row {
+                IconButton(onClick = {
+                    renameValue = emotion.name
+                    showRenameDialog = true
+                }) {
+                    Icon(
+                        imageVector = Icons.Filled.Edit,
+                        contentDescription = "Rename emotion"
+                    )
+                }
                 IconButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) {
                     Icon(
                         imageVector = Icons.Filled.Add,
@@ -356,6 +501,13 @@ fun EmotionDetailScreen(
                                     selectedImageIds + image.id
                                 }
                             }
+                        ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selectedImageIds.contains(image.id)) {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
                         )
                     ) {
                         Column(modifier = Modifier.padding(8.dp)) {
@@ -372,16 +524,17 @@ fun EmotionDetailScreen(
                                     "Long press to select"
                                 },
                                 style = MaterialTheme.typography.bodySmall,
+                                color = if (selectedImageIds.contains(image.id)) {
+                                    MaterialTheme.colorScheme.onSecondaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
                                 modifier = Modifier.padding(top = 6.dp)
                             )
                         }
                     }
                 }
             }
-        }
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
         }
     }
 }

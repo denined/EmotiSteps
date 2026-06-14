@@ -3,6 +3,7 @@ package com.example.emotiontherapy.navigation
 const val MAIN_ROUTE = "main"
 const val ADD_CHILD_ROUTE = "add_child"
 const val ADD_EMOTIONS_ROUTE = "add_emotions"
+const val ADD_EMOTION_FORM_ROUTE = "add_emotion_form"
 const val EMOTION_DETAIL_ROUTE = "emotion_detail"
 const val EVOLUTION_ROUTE = "evolution"
 const val TOKENS_ROUTE = "tokens"

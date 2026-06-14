@@ -9,6 +9,9 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -29,9 +33,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -55,27 +63,33 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.emotiontherapy.Child
-import com.example.emotiontherapy.EmotionItem
-import com.example.emotiontherapy.ExerciseLayout
-import com.example.emotiontherapy.ExerciseSession
-import com.example.emotiontherapy.ExerciseType
-import com.example.emotiontherapy.FindEmotionDifficulty
+import com.example.emotiontherapy.model.Child
+import com.example.emotiontherapy.model.EmotionItem
+import com.example.emotiontherapy.model.ExerciseLayout
+import com.example.emotiontherapy.model.ExerciseSession
+import com.example.emotiontherapy.model.ExerciseType
+import com.example.emotiontherapy.model.FindEmotionDifficulty
+import com.example.emotiontherapy.model.requiredCorrectHits
 import com.example.emotiontherapy.ui.components.BigMenuButton
 import com.example.emotiontherapy.ui.components.ComingSoonScreen
 import com.example.emotiontherapy.ui.components.EmotionThumbnail
+import com.example.emotiontherapy.ui.components.FirstTimeTipDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
+private val FindEmotionBubbleSize = 96.dp
+
 @Composable
 fun ExercisesMenuScreen(
     child: Child?,
+    onSelectChildClick: () -> Unit,
     onShowEmotionClick: () -> Unit,
     onFindEmotionClick: () -> Unit
 ) {
@@ -83,31 +97,101 @@ fun ExercisesMenuScreen(
         ComingSoonScreen(
             title = "No Child Selected",
             message = "Return and select a child profile first.",
-            onBack = {}
+            onBack = onSelectChildClick,
+            actionLabel = "Select Child"
         )
         return
     }
+
+    FirstTimeTipDialog(
+        key = "tip_exercises_screen",
+        title = "Exercises",
+        message = "Choose an activity for ${child.name}. \"Show the emotion\" tracks scores and progress, while \"Find the emotion\" is a calmer attention game without scoring."
+    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Text(
             text = "Exercises - ${child.name}",
             fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
 
-        BigMenuButton(
+        Spacer(modifier = Modifier.weight(0.6f))
+
+        ExerciseMenuButton(
             title = "Show the emotion",
+            subtitle = "Recognition practice with saved emotion pictures",
+            icon = Icons.Filled.Visibility,
             onClick = onShowEmotionClick
         )
-        BigMenuButton(
+        ExerciseMenuButton(
             title = "Find the emotion",
+            subtitle = "Attention game with moving emotion pictures",
+            icon = Icons.Filled.CenterFocusStrong,
             onClick = onFindEmotionClick
         )
+
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ExerciseMenuButton(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(126.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.padding(14.dp)
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.82f)
+                )
+            }
+        }
     }
 }
 
@@ -117,13 +201,15 @@ fun ShowEmotionConfigScreen(
     emotions: List<EmotionItem>,
     onStartSingleEmotion: (Int, List<Int>) -> Unit,
     onStartMixedEmotions: (List<Int>) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onSelectChildClick: () -> Unit
 ) {
     if (child == null) {
         ComingSoonScreen(
             title = "No Child Selected",
             message = "Return and select a child profile first.",
-            onBack = onBack
+            onBack = onSelectChildClick,
+            actionLabel = "Select Child"
         )
         return
     }
@@ -137,32 +223,47 @@ fun ShowEmotionConfigScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = "Show the Emotion - ${child.name}",
             fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         if (emotions.size < 2) {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
                 Text(
                     text = "Add at least two emotions with pictures before starting this exercise.",
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(16.dp)
                 )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Back")
             }
             return
         }
 
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text(text = "Choose layout", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "Choose layout",
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
                         selected = selectedLayout == ExerciseLayout.SINGLE_EMOTION,
@@ -264,15 +365,14 @@ fun ShowEmotionConfigScreen(
                     onStartMixedEmotions(mixedEmotionIds.toList())
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            ),
+            shape = RoundedCornerShape(20.dp)
         ) {
             Text("Start Exercise")
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
         }
     }
 }
@@ -282,13 +382,15 @@ fun FindEmotionConfigScreen(
     child: Child?,
     emotions: List<EmotionItem>,
     onStartFindEmotion: (List<Int>, FindEmotionDifficulty) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onSelectChildClick: () -> Unit
 ) {
     if (child == null) {
         ComingSoonScreen(
             title = "No Child Selected",
             message = "Return and select a child profile first.",
-            onBack = onBack
+            onBack = onSelectChildClick,
+            actionLabel = "Select Child"
         )
         return
     }
@@ -300,25 +402,30 @@ fun FindEmotionConfigScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
             text = "Find the Emotion - ${child.name}",
             fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         if (emotions.size < 2) {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
                 Text(
                     text = "Add at least two emotions with pictures before starting this exercise.",
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(16.dp)
                 )
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-                Text("Back")
             }
             return
         }
@@ -345,9 +452,19 @@ fun FindEmotionConfigScreen(
             }
         }
 
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text(text = "Choose difficulty", fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "Choose difficulty",
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
                         selected = difficulty == FindEmotionDifficulty.EASY,
@@ -384,15 +501,14 @@ fun FindEmotionConfigScreen(
                 }
                 onStartFindEmotion(selectedEmotionIds.toList(), difficulty)
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            ),
+            shape = RoundedCornerShape(20.dp)
         ) {
             Text("Start Exercise")
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
-            Text("Back")
         }
     }
 }
@@ -415,6 +531,12 @@ fun ExerciseSessionScreen(
         return
     }
 
+    FirstTimeTipDialog(
+        key = "tip_exercise_stop_button",
+        title = "Exercise Controls",
+        message = "You can stop the current exercise at any time by pressing the stop button at the top right."
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -431,12 +553,20 @@ fun ExerciseSessionScreen(
                     contentDescription = "Back"
                 )
             }
-            Text(
-                text = "Round ${session.roundNumber}",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Text(
+                    text = "Round ${session.roundNumber}",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
             IconButton(onClick = onEndSession) {
                 Icon(
                     imageVector = Icons.Filled.Stop,
@@ -476,18 +606,19 @@ fun ExerciseSessionScreen(
             Text(
                 text = "Find ${session.currentRound.promptEmotionName}",
                 fontSize = 26.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Correct taps this round: ${session.currentRoundCorrectHits}/8",
-                style = MaterialTheme.typography.bodyLarge
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
             )
 
             if (countdownValue >= 0) {
                 Card(
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
                 ) {
                     Column(
                         modifier = Modifier
@@ -499,7 +630,8 @@ fun ExerciseSessionScreen(
                         Text(
                             text = encouragementMessage,
                             fontSize = 30.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                         Spacer(modifier = Modifier.height(20.dp))
                         Text(
@@ -512,12 +644,14 @@ fun ExerciseSessionScreen(
                         Spacer(modifier = Modifier.height(20.dp))
                         Text(
                             text = "Next emotion:",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                         Text(
                             text = session.currentRound.promptEmotionName,
                             fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
@@ -529,22 +663,24 @@ fun ExerciseSessionScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
-
-            if (session.feedbackMessage.isNotBlank()) {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = session.feedbackMessage,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            }
             return@Column
+        }
+
+        val isCorrectSelection = session.roundResolved &&
+            session.selectedAnswerEmotionId == session.currentRound.correctEmotionId
+
+        LaunchedEffect(session.roundNumber, session.selectedAnswerEmotionId) {
+            if (isCorrectSelection) {
+                delay(650)
+                onNextRound()
+            }
         }
 
         Text(
             text = "Show me ${session.currentRound.promptEmotionName}",
             fontSize = 26.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         if (session.layout == ExerciseLayout.SINGLE_EMOTION) {
@@ -553,19 +689,16 @@ fun ExerciseSessionScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 session.currentRound.cards.forEach { card ->
-                    Button(
+                    ShowEmotionAnswerCard(
+                        imageUri = card.imageUri,
+                        isEnabled = !session.roundResolved,
+                        isCorrectSelection = session.selectedAnswerEmotionId == card.emotionId &&
+                            card.emotionId == session.currentRound.correctEmotionId,
                         onClick = { onAnswerSelected(card.emotionId) },
-                        enabled = session.selectedAnswerEmotionId == null,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                    ) {
-                        EmotionThumbnail(
-                            uriString = card.imageUri,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
+                    )
                 }
             }
         } else {
@@ -579,39 +712,67 @@ fun ExerciseSessionScreen(
                     session.currentRound.cards,
                     key = { card -> "${card.emotionId}-${card.imageUri}" }
                 ) { card ->
-                    Button(
+                    ShowEmotionAnswerCard(
+                        imageUri = card.imageUri,
+                        isEnabled = !session.roundResolved,
+                        isCorrectSelection = session.selectedAnswerEmotionId == card.emotionId && isCorrectSelection,
                         onClick = { onAnswerSelected(card.emotionId) },
-                        enabled = session.selectedAnswerEmotionId == null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(180.dp)
-                    ) {
-                        EmotionThumbnail(
-                            uriString = card.imageUri,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    }
+                    )
                 }
-            }
-        }
-
-        if (session.feedbackMessage.isNotBlank()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = session.feedbackMessage,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-
-            Button(onClick = onNextRound, modifier = Modifier.fillMaxWidth()) {
-                Text("Next Round")
             }
         }
     }
 }
 
 @Composable
+private fun ShowEmotionAnswerCard(
+    imageUri: String,
+    isEnabled: Boolean,
+    isCorrectSelection: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        if (isCorrectSelection) {
+            Card(
+                modifier = Modifier
+                    .matchParentSize()
+                    .scale(1.04f),
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = Color(0xCC00E676)
+                )
+            ) {}
+        }
+
+        Button(
+            onClick = onClick,
+            enabled = isEnabled,
+            modifier = Modifier.matchParentSize(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            EmotionThumbnail(
+                uriString = imageUri,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        }
+    }
+}
+
+@Composable
+@Suppress("UnusedBoxWithConstraintsScope")
 private fun FindEmotionPlayArea(
     session: ExerciseSession,
     emotions: List<EmotionItem>,
@@ -669,9 +830,9 @@ private fun FindEmotionPlayArea(
             activeBubbles += bubble
             delay(
                 if (activeBubbles.size <= 1) {
-                    random.nextLong(500L, 900L)
+                    session.findEmotionDifficulty.initialSpawnDelayRangeMs.random(random)
                 } else {
-                    random.nextLong(2_200L, 3_500L)
+                    session.findEmotionDifficulty.spawnDelayRangeMs.random(random)
                 }
             )
         }
@@ -683,12 +844,15 @@ private fun FindEmotionPlayArea(
                 .fillMaxSize()
                 .padding(12.dp)
         ) {
+            val areaWidth = maxWidth
+            val areaHeight = maxHeight
+
             activeBubbles.forEach { bubble ->
                 key(bubble.id) {
                     FindEmotionBubbleItem(
                         bubble = bubble,
-                        areaWidth = maxWidth,
-                        areaHeight = maxHeight,
+                        areaWidth = areaWidth,
+                        areaHeight = areaHeight,
                         isCorrect = bubble.emotionId == session.currentRound.correctEmotionId,
                         onCorrectTap = {
                             activeBubbles.removeAll { it.id == bubble.id }
@@ -728,9 +892,9 @@ private fun FindEmotionBubbleItem(
 ) {
     var removed by remember(bubble.id) { mutableStateOf(false) }
     var showCorrectFeedback by remember(bubble.id) { mutableStateOf(false) }
+    var showIncorrectFeedback by remember(bubble.id) { mutableStateOf(false) }
     val alpha = remember(bubble.id) { Animatable(0f) }
     val scale = remember(bubble.id) { Animatable(0.92f) }
-    val shakeOffset = remember(bubble.id) { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(bubble.id) {
@@ -746,9 +910,9 @@ private fun FindEmotionBubbleItem(
 
     Box(
         modifier = Modifier
-            .size(112.dp)
+            .size(FindEmotionBubbleSize)
             .offset(
-                x = areaWidth * bubble.xFraction + shakeOffset.value.dp,
+                x = areaWidth * bubble.xFraction,
                 y = areaHeight * bubble.yFraction
             )
             .scale(scale.value)
@@ -765,12 +929,9 @@ private fun FindEmotionBubbleItem(
                     }
                 } else {
                     scope.launch {
-                        shakeOffset.snapTo(-10f)
-                        repeat(3) {
-                            shakeOffset.animateTo(10f, animationSpec = tween(45, easing = LinearEasing))
-                            shakeOffset.animateTo(-10f, animationSpec = tween(45, easing = LinearEasing))
-                        }
-                        shakeOffset.animateTo(0f, animationSpec = tween(45, easing = LinearEasing))
+                        showIncorrectFeedback = true
+                        delay(180)
+                        showIncorrectFeedback = false
                     }
                     onIncorrectTap()
                 }
@@ -788,8 +949,20 @@ private fun FindEmotionBubbleItem(
             ) {}
         }
 
+        if (showIncorrectFeedback) {
+            Card(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(1.04f),
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = Color(0xCCCFD8DC)
+                )
+            ) {}
+        }
+
         Card(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            shape = RoundedCornerShape(24.dp)
         ) {
             EmotionThumbnail(
                 uriString = bubble.imageUri,
@@ -828,7 +1001,7 @@ private fun buildFindEmotionBubble(
         imageUri = chosenEmotion.imageUris.random(random),
         xFraction = xFraction,
         yFraction = yFraction,
-        visibleDurationMillis = listOf(5_000, 6_000, 7_000).random(random)
+        visibleDurationMillis = session.findEmotionDifficulty.visibleDurationChoicesMs.random(random)
     )
 }
 
@@ -839,20 +1012,41 @@ private val FindEmotionDifficulty.correctAppearanceProbability: Float
         FindEmotionDifficulty.HARD -> 0.2f
     }
 
+private val FindEmotionDifficulty.visibleDurationChoicesMs: List<Int>
+    get() = when (this) {
+        FindEmotionDifficulty.EASY -> listOf(6_000, 7_000, 8_000)
+        FindEmotionDifficulty.MEDIUM -> listOf(5_000, 6_000, 7_000)
+        FindEmotionDifficulty.HARD -> listOf(4_000, 5_000, 6_000)
+    }
+
+private val FindEmotionDifficulty.initialSpawnDelayRangeMs: LongRange
+    get() = when (this) {
+        FindEmotionDifficulty.EASY -> 900L..1_400L
+        FindEmotionDifficulty.MEDIUM -> 600L..1_000L
+        FindEmotionDifficulty.HARD -> 450L..800L
+    }
+
+private val FindEmotionDifficulty.spawnDelayRangeMs: LongRange
+    get() = when (this) {
+        FindEmotionDifficulty.EASY -> 2_800L..4_200L
+        FindEmotionDifficulty.MEDIUM -> 2_200L..3_500L
+        FindEmotionDifficulty.HARD -> 1_500L..2_600L
+    }
+
 private fun findAvailableBubblePosition(
     activeBubbles: List<FindEmotionBubble>,
     random: Random
 ): Pair<Float, Float> {
     val candidatePositions = listOf(
-        0.02f to 0.02f,
-        0.36f to 0.02f,
-        0.70f to 0.02f,
-        0.02f to 0.38f,
-        0.36f to 0.38f,
-        0.70f to 0.38f,
-        0.02f to 0.72f,
-        0.36f to 0.72f,
-        0.70f to 0.72f
+        0.05f to 0.05f,
+        0.37f to 0.05f,
+        0.69f to 0.05f,
+        0.05f to 0.39f,
+        0.37f to 0.39f,
+        0.69f to 0.39f,
+        0.05f to 0.73f,
+        0.37f to 0.73f,
+        0.69f to 0.73f
     ).shuffled(random)
 
     val occupiedPositions = activeBubbles.map { it.xFraction to it.yFraction }.toSet()
@@ -897,11 +1091,20 @@ fun ExerciseCompleteScreen(
         Text(
             text = "Congratulations",
             fontSize = 30.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
         )
         Text(text = "Rounds completed: ${session.answeredRounds.size}")
 
-        Button(onClick = onShowStatistics, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = onShowStatistics,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            ),
+            shape = RoundedCornerShape(20.dp)
+        ) {
             Text("Show Statistics")
         }
 
@@ -912,7 +1115,8 @@ fun ExerciseCompleteScreen(
 @Composable
 fun ExerciseStatsScreen(
     session: ExerciseSession?,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onClose: () -> Unit
 ) {
     if (session == null) {
         ComingSoonScreen(
@@ -931,24 +1135,36 @@ fun ExerciseStatsScreen(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Start
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            Text(
+                text = "Session Statistics",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            IconButton(onClick = onClose) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back"
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Close statistics"
                 )
             }
         }
-
-        Text(text = "Session Statistics", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text(text = "Correct guesses: ${session.correctRounds}/${session.answeredRounds.size}")
         Text(text = "Accuracy: ${session.accuracyPercent}%")
 
         if (session.answeredRounds.isEmpty()) {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
                 Text(
                     text = "No answered rounds were recorded in this session.",
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(16.dp)
                 )
             }
@@ -958,13 +1174,23 @@ fun ExerciseStatsScreen(
                 modifier = Modifier.weight(1f)
             ) {
                 items(session.answeredRounds, key = { it.roundNumber }) { round ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        )
+                    ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
                                 text = "Round ${round.roundNumber}",
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
-                            Text(text = "Prompt: ${round.promptEmotionName}")
+                            Text(
+                                text = "Prompt: ${round.promptEmotionName}",
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                             Text(
                                 text = if (round.isCorrect) "Status: Correct" else "Status: Incorrect",
                                 color = if (round.isCorrect) {

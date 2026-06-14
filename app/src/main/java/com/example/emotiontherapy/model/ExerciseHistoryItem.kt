@@ -1,0 +1,19 @@
+package com.example.emotiontherapy.model
+
+data class ExerciseHistoryRoundItem(
+    val roundNumber: Int,
+    val promptEmotionName: String,
+    val isCorrect: Boolean
+)
+
+data class ExerciseHistoryItem(
+    val id: Int,
+    val layout: ExerciseLayout,
+    val layoutLabel: String,
+    val endedAtMillis: Long,
+    val totalRounds: Int,
+    val correctRounds: Int,
+    val accuracyPercent: Int,
+    val includeInEvolution: Boolean,
+    val rounds: List<ExerciseHistoryRoundItem>
+)

@@ -1,5 +1,6 @@
 package com.example.emotiontherapy.ui.screens
 
+import androidx.camera.core.ExperimentalGetImage
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -10,6 +11,7 @@ import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.Rect as AndroidRect
 import android.graphics.YuvImage
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -19,28 +21,32 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,27 +58,266 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.emotiontherapy.ai.EmotionPrediction
 import com.example.emotiontherapy.ai.EmotionRecognitionEngine
 import com.example.emotiontherapy.ai.PredictionSmoother
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
+private enum class AiRecognitionMode {
+    CHOOSER,
+    GALLERY,
+    LIVE
+}
+
 @Composable
 fun AiRecognitionScreen(
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val liveDetector = remember { createLiveFaceDetector() }
+    val galleryDetector = remember { createGalleryFaceDetector() }
+    val recognitionEngine = remember { EmotionRecognitionEngine.create(context) }
+    var mode by remember { mutableStateOf(AiRecognitionMode.CHOOSER) }
+
+    DisposableEffect(liveDetector, galleryDetector, recognitionEngine) {
+        recognitionEngine.initialize()
+        onDispose {
+            liveDetector.close()
+            galleryDetector.close()
+            recognitionEngine.close()
+        }
+    }
+
+    when (mode) {
+        AiRecognitionMode.CHOOSER -> {
+            AiRecognitionChooserScreen(
+                onBack = onBack,
+                onGalleryClick = { mode = AiRecognitionMode.GALLERY },
+                onLiveClick = { mode = AiRecognitionMode.LIVE }
+            )
+        }
+
+        AiRecognitionMode.GALLERY -> {
+            GalleryRecognitionScreen(
+                detector = galleryDetector,
+                recognitionEngine = recognitionEngine,
+                onBack = { mode = AiRecognitionMode.CHOOSER }
+            )
+        }
+
+        AiRecognitionMode.LIVE -> {
+            LiveRecognitionScreen(
+                detector = liveDetector,
+                recognitionEngine = recognitionEngine,
+                onBack = { mode = AiRecognitionMode.CHOOSER }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiRecognitionChooserScreen(
+    onBack: () -> Unit,
+    onGalleryClick: () -> Unit,
+    onLiveClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "AI Recognition",
+            fontSize = 28.sp
+        )
+
+        Text(
+            text = "Choose how you want to analyze the facial expression."
+        )
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhotoLibrary,
+                    contentDescription = null,
+                    modifier = Modifier.size(42.dp)
+                )
+                Text(
+                    text = "Choose An Image",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = "Pick a photo from the device gallery and run the prediction on that image."
+                )
+                Button(
+                    onClick = onGalleryClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Select From Gallery")
+                }
+            }
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Videocam,
+                    contentDescription = null,
+                    modifier = Modifier.size(42.dp)
+                )
+                Text(
+                    text = "Use The Camera Live",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Text(
+                    text = "Open the camera and get live emotion predictions while the face is visible."
+                )
+                Button(
+                    onClick = onLiveClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open Live Camera")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GalleryRecognitionScreen(
+    detector: FaceDetector,
+    recognitionEngine: EmotionRecognitionEngine,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var emotionPrediction by remember { mutableStateOf<EmotionPrediction?>(null) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var galleryMessage by remember { mutableStateOf("Choose an image from the gallery to analyze it.") }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        selectedBitmap = null
+        emotionPrediction = null
+        isProcessing = true
+        galleryMessage = "Analyzing image..."
+        runGalleryPrediction(
+            context = context,
+            uri = uri,
+            detector = detector,
+            recognitionEngine = recognitionEngine,
+            onSuccess = { bitmap, prediction ->
+                selectedBitmap = bitmap
+                emotionPrediction = prediction
+                galleryMessage = if (prediction != null) {
+                    "Prediction complete."
+                } else {
+                    "No face was detected in the selected image."
+                }
+                isProcessing = false
+            },
+            onFailure = {
+                selectedBitmap = null
+                emotionPrediction = null
+                galleryMessage = "The image could not be processed."
+                isProcessing = false
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = "Gallery Prediction",
+            fontSize = 28.sp
+        )
+
+        Text(
+            text = "Select one image from the device gallery and the app will analyze the most visible face."
+        )
+
+        Button(
+            onClick = { galleryLauncher.launch("image/*") },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Choose Image")
+        }
+
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (selectedBitmap != null) {
+                    Image(
+                        bitmap = selectedBitmap!!.asImageBitmap(),
+                        contentDescription = "Selected gallery image",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(360.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isProcessing) {
+                            CircularProgressIndicator()
+                        } else {
+                            Text(galleryMessage)
+                        }
+                    }
+                }
+
+                if (selectedBitmap != null) {
+                    PredictionSummary(prediction = emotionPrediction)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveRecognitionScreen(
+    detector: FaceDetector,
+    recognitionEngine: EmotionRecognitionEngine,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -84,29 +329,46 @@ fun AiRecognitionScreen(
     ) { granted ->
         hasCameraPermission = granted
     }
+    var lensFacing by remember { mutableStateOf(CameraSelector.LENS_FACING_FRONT) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back"
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Live Camera Prediction",
+                fontSize = 28.sp
             )
+            if (hasCameraPermission) {
+                FilledTonalIconButton(
+                    onClick = {
+                        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+                            CameraSelector.LENS_FACING_BACK
+                        } else {
+                            CameraSelector.LENS_FACING_FRONT
+                        }
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Cameraswitch,
+                        contentDescription = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+                            "Switch to back camera"
+                        } else {
+                            "Switch to front camera"
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         }
-
-        Text(
-            text = "AI Recognition",
-            fontSize = 28.sp
-        )
-
-        Text(
-            text = "Step 4: live face detection with the local TensorFlow Lite emotion model. The prototype classifier stays as a fallback if the model is unavailable."
-        )
 
         if (!hasCameraPermission) {
             Card(modifier = Modifier.fillMaxWidth()) {
@@ -114,7 +376,7 @@ fun AiRecognitionScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Camera permission is required to use AI recognition.")
+                    Text("Camera permission is required to use live AI recognition.")
                     Button(
                         onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                         modifier = Modifier.fillMaxWidth()
@@ -124,13 +386,55 @@ fun AiRecognitionScreen(
                 }
             }
         } else {
-            CameraPreviewCard()
+            CameraPreviewCard(
+                detector = detector,
+                recognitionEngine = recognitionEngine,
+                lensFacing = lensFacing
+            )
         }
     }
 }
 
 @Composable
-private fun CameraPreviewCard() {
+private fun PredictionSummary(
+    prediction: EmotionPrediction?
+) {
+    if (prediction == null) return
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = if (prediction.isUncertain) {
+                "Detected emotion: Uncertain"
+            } else {
+                "Detected emotion: ${prediction.label}"
+            },
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            text = if (prediction.isUncertain) {
+                "Confidence is too low for a reliable classification."
+            } else {
+                "Confidence: ${(prediction.confidence * 100).toInt()}%"
+            },
+            style = MaterialTheme.typography.bodyMedium
+        )
+        if (prediction.secondaryLabel != null && prediction.secondaryConfidence != null) {
+            Text(
+                text = "Second guess: ${prediction.secondaryLabel} (${(prediction.secondaryConfidence * 100).toInt()}%)",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraPreviewCard(
+    detector: FaceDetector,
+    recognitionEngine: EmotionRecognitionEngine,
+    lensFacing: Int
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember {
@@ -139,16 +443,19 @@ private fun CameraPreviewCard() {
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
     }
-    val detector = remember { createFaceDetector() }
-    val recognitionEngine = remember { EmotionRecognitionEngine.create(context) }
     val predictionSmoother = remember { PredictionSmoother() }
-    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val analysisExecutor = remember(lensFacing) { Executors.newSingleThreadExecutor() }
     var faceBounds by remember { mutableStateOf<NormalizedFaceBounds?>(null) }
     var emotionPrediction by remember { mutableStateOf<EmotionPrediction?>(null) }
     val latestFaceBounds by rememberUpdatedState(faceBounds)
 
-    DisposableEffect(lifecycleOwner, previewView, detector, analysisExecutor, recognitionEngine, predictionSmoother) {
-        recognitionEngine.initialize()
+    LaunchedEffect(lensFacing) {
+        faceBounds = null
+        emotionPrediction = null
+        predictionSmoother.clear()
+    }
+
+    DisposableEffect(lifecycleOwner, previewView, detector, analysisExecutor, recognitionEngine, predictionSmoother, lensFacing) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val mainExecutor = ContextCompat.getMainExecutor(context)
         val listener = Runnable {
@@ -162,7 +469,11 @@ private fun CameraPreviewCard() {
                 .apply {
                     setAnalyzer(
                         analysisExecutor,
-                        FaceDetectionAnalyzer(detector, recognitionEngine) { result ->
+                        FaceDetectionAnalyzer(
+                            detector = detector,
+                            recognitionEngine = recognitionEngine,
+                            isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT
+                        ) { result ->
                             faceBounds = result.bounds
                             emotionPrediction = result.prediction?.let { predictionSmoother.push(it) }
                             if (result.prediction == null) {
@@ -171,7 +482,9 @@ private fun CameraPreviewCard() {
                         }
                     )
                 }
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+            val cameraSelector = CameraSelector.Builder()
+                .requireLensFacing(lensFacing)
+                .build()
 
             cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(
@@ -188,8 +501,6 @@ private fun CameraPreviewCard() {
             if (cameraProviderFuture.isDone) {
                 cameraProviderFuture.get().unbindAll()
             }
-            detector.close()
-            recognitionEngine.close()
             analysisExecutor.shutdown()
         }
     }
@@ -202,7 +513,7 @@ private fun CameraPreviewCard() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(520.dp),
+                    .height(420.dp),
                 contentAlignment = Alignment.Center
             ) {
                 AndroidView(
@@ -272,6 +583,13 @@ private fun CameraPreviewCard() {
                                 color = Color.White.copy(alpha = 0.92f),
                                 style = MaterialTheme.typography.bodyMedium
                             )
+                            if (prediction.secondaryLabel != null && prediction.secondaryConfidence != null) {
+                                Text(
+                                    text = "Second guess: ${prediction.secondaryLabel} (${(prediction.secondaryConfidence * 100).toInt()}%)",
+                                    color = Color.White.copy(alpha = 0.80f),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                         }
                     }
                 }
@@ -285,16 +603,11 @@ private fun CameraPreviewCard() {
                 text = faceBounds.toGuidanceMessage(),
                 style = MaterialTheme.typography.bodyMedium
             )
-            Text(
-                text = recognitionEngine.modelStatusMessage(),
-                style = MaterialTheme.typography.bodySmall
-            )
-
         }
     }
 }
 
-private fun createFaceDetector(): FaceDetector {
+private fun createLiveFaceDetector(): FaceDetector {
     val options = FaceDetectorOptions.Builder()
         .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
         .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
@@ -305,13 +618,126 @@ private fun createFaceDetector(): FaceDetector {
     return FaceDetection.getClient(options)
 }
 
+private fun createGalleryFaceDetector(): FaceDetector {
+    val options = FaceDetectorOptions.Builder()
+        .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
+        .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+        .setContourMode(FaceDetectorOptions.CONTOUR_MODE_ALL)
+        .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
+        .enableTracking()
+        .build()
+    return FaceDetection.getClient(options)
+}
+
+private fun runGalleryPrediction(
+    context: Context,
+    uri: Uri,
+    detector: FaceDetector,
+    recognitionEngine: EmotionRecognitionEngine,
+    onSuccess: (Bitmap, EmotionPrediction?) -> Unit,
+    onFailure: () -> Unit
+) {
+    try {
+        val bitmap = loadBitmapRespectingExif(context, uri) ?: run {
+            onFailure()
+            return
+        }
+
+        detectFaceInBitmap(
+            detector = detector,
+            bitmap = bitmap,
+            onSuccess = { detectedBitmap, face ->
+                val prediction = face?.let {
+                    val faceBitmap = EmotionRecognitionEngine.cropFace(detectedBitmap, it.boundingBox)
+                    recognitionEngine.classify(faceBitmap, it)
+                }
+                onSuccess(detectedBitmap, prediction)
+            },
+            onFailure = onFailure
+        )
+    } catch (_: Exception) {
+        onFailure()
+    }
+}
+
+private fun loadBitmapRespectingExif(
+    context: Context,
+    uri: Uri
+): Bitmap? {
+    val bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input)
+    } ?: return null
+
+    val rotationDegrees = context.contentResolver.openInputStream(uri)?.use(::exifRotationDegrees) ?: 0
+    return bitmap.rotateIfNeeded(rotationDegrees)
+}
+
+private fun exifRotationDegrees(inputStream: InputStream): Int {
+    val exif = ExifInterface(inputStream)
+    return when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270
+        else -> 0
+    }
+}
+
+private fun detectFaceInBitmap(
+    detector: FaceDetector,
+    bitmap: Bitmap,
+    onSuccess: (Bitmap, Face?) -> Unit,
+    onFailure: () -> Unit
+) {
+    val candidates = listOf(0, 90, 270, 180).map { bitmap.rotateIfNeeded(it) }
+    detectFaceInCandidates(detector, candidates, 0, onSuccess, onFailure)
+}
+
+private fun detectFaceInCandidates(
+    detector: FaceDetector,
+    candidates: List<Bitmap>,
+    index: Int,
+    onSuccess: (Bitmap, Face?) -> Unit,
+    onFailure: () -> Unit
+) {
+    if (index >= candidates.size) {
+        onSuccess(candidates.firstOrNull() ?: return onFailure(), null)
+        return
+    }
+
+    val candidate = candidates[index]
+    detector.process(InputImage.fromBitmap(candidate, 0))
+        .addOnSuccessListener { faces ->
+            val face = faces.maxByOrNull { it.boundingBox.width() * it.boundingBox.height() }
+            if (face != null) {
+                onSuccess(candidate, face)
+            } else {
+                detectFaceInCandidates(detector, candidates, index + 1, onSuccess, onFailure)
+            }
+        }
+        .addOnFailureListener {
+            if (index == candidates.lastIndex) {
+                onFailure()
+            } else {
+                detectFaceInCandidates(detector, candidates, index + 1, onSuccess, onFailure)
+            }
+        }
+}
+
+private fun Bitmap.rotateIfNeeded(rotationDegrees: Int): Bitmap {
+    if (rotationDegrees % 360 == 0) return this
+    val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+    return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
+}
+
 private class FaceDetectionAnalyzer(
     private val detector: FaceDetector,
     private val recognitionEngine: EmotionRecognitionEngine,
+    private val isFrontCamera: Boolean,
     private val onFaceDetected: (FaceDetectionResult) -> Unit
 ) : ImageAnalysis.Analyzer {
     private val isProcessing = AtomicBoolean(false)
 
+    @ExperimentalGetImage
     override fun analyze(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
         if (mediaImage == null || !isProcessing.compareAndSet(false, true)) {
@@ -337,7 +763,7 @@ private class FaceDetectionAnalyzer(
                             imageWidth = imageProxy.width,
                             imageHeight = imageProxy.height,
                             rotationDegrees = rotation,
-                            isFrontCamera = true
+                            isFrontCamera = isFrontCamera
                         ),
                         prediction = prediction
                     )
